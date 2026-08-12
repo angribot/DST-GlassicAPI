@@ -1,0 +1,3 @@
+# Generated Workshop publishing artifacts
+*.generated.vdf
+build/
