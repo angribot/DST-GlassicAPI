@@ -1,0 +1,14 @@
+"workshopitem"
+{
+    "appid"           "{{APP_ID}}"
+    "publishedfileid" "{{PUBLISHED_FILE_ID}}"
+    "contentfolder"   "{{CONTENT_FOLDER}}"
+    "changenote"      "{{CHANGE_NOTE}}"
+
+    "tags"
+    {
+        "0" "utility"
+        "1" "all_clients_require_mod"
+        "2" "version:{{VERSION}}"
+    }
+}
