@@ -2,11 +2,9 @@
 
 set -euo pipefail
 
-readonly APP_ID="322330"
-readonly PUBLISHED_FILE_ID="2521851770"
-
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(git -C "$SCRIPT_DIR" rev-parse --show-toplevel)"
+CONFIG="$SCRIPT_DIR/config"
 TEMPLATE="$SCRIPT_DIR/item.vdf.template"
 
 CHANGE_NOTE=""
@@ -76,7 +74,14 @@ done
 [[ -x "$STEAMCMD" ]] || die "STEAMCMD is not executable: $STEAMCMD"
 [[ -n "$CHANGE_NOTE" ]] || die "--changenote must not be empty"
 [[ "$CHANGE_NOTE" != *$'\n'* && "$CHANGE_NOTE" != *$'\r'* ]] || die "--changenote must be a single line"
+[[ -f "$CONFIG" ]] || die "Workshop config not found: $CONFIG"
 [[ -f "$TEMPLATE" ]] || die "VDF template not found: $TEMPLATE"
+
+APP_ID="$(sed -n 's/^APP_ID=//p' "$CONFIG")"
+PUBLISHED_FILE_ID="$(sed -n 's/^PUBLISHED_FILE_ID=//p' "$CONFIG")"
+[[ "$APP_ID" =~ ^[1-9][0-9]*$ ]] || die "APP_ID must be a non-zero numeric ID"
+[[ "$PUBLISHED_FILE_ID" =~ ^[1-9][0-9]*$ ]] || die "PUBLISHED_FILE_ID must be a non-zero numeric ID"
+readonly APP_ID PUBLISHED_FILE_ID
 
 [[ -z "$(git -C "$REPO_ROOT" status --porcelain)" ]] || die "working tree is not clean"
 
