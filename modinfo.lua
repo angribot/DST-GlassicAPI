@@ -11,18 +11,20 @@ name = "Glassic API"
 author = zheng("鸭子乐园", "Ducklantis")
 -- stylua: ignore
 changelog = zheng([[
-- GetFullInventory增加一处条件判断。
+- 增加通用动作API。
 
 最近更新：
+- GetFullInventory增加一处条件判断。
 - 修复一处崩溃。
 - AnimState.GetSkinBuild现在会回落到Entity.GetSkinBuild。
 - 为GlassicAPI.AddTech增加了一个传入参数。
 - 官方皮肤不会被视为模组皮肤了。
 - 调整了reskin_tool的can_cast_fn的后处理写法。
 ]], [[
-- Add condition in fn GetFullInventory.
+- Add common action API.
 
 Recent Changes:
+- Add condition in fn GetFullInventory.
 - Fix a crash.
 - AnimState.GetSkinBuild will now fallback to Entity.GetSkinBuild.
 - Add 2rd param for GlassicAPI.AddTech.
