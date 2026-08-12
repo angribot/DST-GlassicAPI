@@ -8,6 +8,7 @@ CONFIG="$SCRIPT_DIR/config"
 TEMPLATE="$SCRIPT_DIR/item.vdf.template"
 
 CHANGE_NOTE=""
+CHANGE_NOTE_SET=false
 DRY_RUN=false
 ASSUME_YES=false
 WORK_DIR=""
@@ -15,17 +16,24 @@ WORK_DIR=""
 usage() {
     cat <<'EOF'
 Usage:
-  .workshop/publish.sh --changenote "update note" [--dry-run] [--yes]
+  .workshop/publish.sh [--changenote NOTE] [--dry-run] [--yes]
+
+By default, the update note is built from the version and current English
+changelog entry in modinfo.lua.
 
 Required environment variables:
   STEAMCMD    Absolute path to the official steamcmd.sh
   STEAM_USER  Steam account name that owns the Workshop item
 
 Options:
-  --changenote NOTE  Workshop update note (required)
+  --changenote NOTE  Override the update note; NOTE may contain newlines
   --dry-run          Build and inspect the payload without invoking SteamCMD
   --yes              Skip the interactive Workshop ID confirmation
   -h, --help         Show this help
+
+Examples:
+  .workshop/publish.sh --dry-run
+  .workshop/publish.sh --changenote $'Version: X.Y.Z\n\nChanges:\n- Update note.' --dry-run
 EOF
 }
 
@@ -41,7 +49,26 @@ cleanup() {
 }
 
 vdf_escape() {
-    printf '%s' "$1" | sed 's/\\/\\\\/g; s/"/\\"/g'
+    local escaped="${1//\\/\\\\}"
+    escaped="${escaped//\"/\\\"}"
+    printf -v "$2" '%s' "$escaped"
+}
+
+extract_current_changelog() {
+    perl -0777 -e '
+        $_ = <>;
+        my @matches = /changelog\s*=\s*zheng\s*\(\s*\[\[(.*?)\]\]\s*,\s*\[\[(.*?)\]\]\s*\)/sg;
+        exit 1 unless @matches == 2;
+
+        my $changelog = $matches[1];
+        $changelog =~ s/\A(?:[\t ]*\n)+//;
+        $changelog =~ s/(?:\n[\t ]*)+\z//;
+        $changelog =~ s/\n[\t ]*Recent Changes:[\t ]*(?:\n|\z).*//s;
+        $changelog =~ s/(?:\n[\t ]*)+\z//;
+        exit 1 unless $changelog =~ /\S/;
+
+        print $changelog;
+    ' "$1"
 }
 
 while (($# > 0)); do
@@ -49,6 +76,7 @@ while (($# > 0)); do
         --changenote)
             (($# >= 2)) || die "--changenote requires a value"
             CHANGE_NOTE="$2"
+            CHANGE_NOTE_SET=true
             shift 2
             ;;
         --dry-run)
@@ -72,8 +100,6 @@ done
 [[ -n "${STEAMCMD:-}" ]] || die "STEAMCMD is empty; set it to the official steamcmd.sh path"
 [[ -n "${STEAM_USER:-}" ]] || die "STEAM_USER is empty; set it to the Workshop owner account"
 [[ -x "$STEAMCMD" ]] || die "STEAMCMD is not executable: $STEAMCMD"
-[[ -n "$CHANGE_NOTE" ]] || die "--changenote must not be empty"
-[[ "$CHANGE_NOTE" != *$'\n'* && "$CHANGE_NOTE" != *$'\r'* ]] || die "--changenote must be a single line"
 [[ -f "$CONFIG" ]] || die "Workshop config not found: $CONFIG"
 [[ -f "$TEMPLATE" ]] || die "VDF template not found: $TEMPLATE"
 
@@ -116,11 +142,21 @@ git -C "$REPO_ROOT" archive --format=tar HEAD -- "${CONTENT_PATHS[@]}" | tar -xf
 VERSION="$(awk -F'"' '/^[[:space:]]*version[[:space:]]*=[[:space:]]*"/ { print $2; exit }' "$CONTENT_DIR/modinfo.lua")"
 [[ -n "$VERSION" ]] || die "could not read version from modinfo.lua"
 
-APP_ID_VDF="$(vdf_escape "$APP_ID")"
-PUBLISHED_FILE_ID_VDF="$(vdf_escape "$PUBLISHED_FILE_ID")"
-CONTENT_FOLDER_VDF="$(vdf_escape "$CONTENT_DIR")"
-CHANGE_NOTE_VDF="$(vdf_escape "$CHANGE_NOTE")"
-VERSION_VDF="$(vdf_escape "$VERSION")"
+if [[ "$CHANGE_NOTE_SET" == true ]]; then
+    CHANGE_NOTE="${CHANGE_NOTE//$'\r\n'/$'\n'}"
+    [[ "$CHANGE_NOTE" != *$'\r'* ]] || die "--changenote contains an unsupported carriage return"
+    [[ "$CHANGE_NOTE" =~ [^[:space:]] ]] || die "--changenote must not be empty"
+else
+    CURRENT_CHANGELOG="$(extract_current_changelog "$CONTENT_DIR/modinfo.lua")" || \
+        die "could not read the current English changelog from modinfo.lua"
+    CHANGE_NOTE="$(printf 'Version: %s\n\nChanges:\n%s' "$VERSION" "$CURRENT_CHANGELOG")"
+fi
+
+vdf_escape "$APP_ID" APP_ID_VDF
+vdf_escape "$PUBLISHED_FILE_ID" PUBLISHED_FILE_ID_VDF
+vdf_escape "$CONTENT_DIR" CONTENT_FOLDER_VDF
+vdf_escape "$CHANGE_NOTE" CHANGE_NOTE_VDF
+vdf_escape "$VERSION" VERSION_VDF
 
 APP_ID_VDF="$APP_ID_VDF" \
 PUBLISHED_FILE_ID_VDF="$PUBLISHED_FILE_ID_VDF" \
@@ -144,7 +180,8 @@ printf '  App ID:            %s\n' "$APP_ID"
 printf '  Published file ID: %s\n' "$PUBLISHED_FILE_ID"
 printf '  Version:           %s\n' "$VERSION"
 printf '  Git commit:        %s\n' "$(git -C "$REPO_ROOT" rev-parse --short HEAD)"
-printf '  Change note:       %s\n' "$CHANGE_NOTE"
+printf '  Change note:\n'
+printf '%s\n' "$CHANGE_NOTE" | sed 's/^/    /'
 printf '\nPayload files:\n'
 (
     cd "$CONTENT_DIR"
