@@ -63,7 +63,7 @@ extract_current_changelog() {
         my $changelog = $matches[1];
         $changelog =~ s/\A(?:[\t ]*\n)+//;
         $changelog =~ s/(?:\n[\t ]*)+\z//;
-        $changelog =~ s/\n[\t ]*Recent Changes:[\t ]*(?:\n|\z).*//s;
+        $changelog =~ s/\n[\t ]*(?i:Recent Changes):[\t ]*(?:\n|\z).*//s;
         $changelog =~ s/(?:\n[\t ]*)+\z//;
         exit 1 unless $changelog =~ /\S/;
 
@@ -111,7 +111,7 @@ readonly APP_ID PUBLISHED_FILE_ID
 
 [[ -z "$(git -C "$REPO_ROOT" status --porcelain)" ]] || die "working tree is not clean"
 
-for required_path in modinfo.lua modmain.lua modclientmain.lua; do
+for required_path in modinfo.lua modmain.lua; do
     git -C "$REPO_ROOT" cat-file -e "HEAD:$required_path" 2>/dev/null || \
         die "required Workshop file is missing from HEAD: $required_path"
 done
