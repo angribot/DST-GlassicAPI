@@ -120,12 +120,12 @@ while IFS= read -r -d '' entry; do
     object_type="${object_type%% *}"
 
     [[ "$content_path" == .* ]] && continue
-    if [[ "$object_type" == tree || "$content_path" == *.lua ]]; then
+    if [[ "$object_type" == tree || "$content_path" == *.lua || "$content_path" == *.xml || "$content_path" == *.tex ]]; then
         CONTENT_PATHS+=("$content_path")
     fi
 done < <(git -C "$REPO_ROOT" ls-tree -z HEAD)
 
-((${#CONTENT_PATHS[@]} > 0)) || die "HEAD contains no publishable top-level directories or Lua files"
+((${#CONTENT_PATHS[@]} > 0)) || die "HEAD contains no publishable top-level directories or Lua, XML, or TeX files"
 
 WORK_DIR="$(mktemp -d "${TMPDIR:-/tmp}/glassicapi-workshop.XXXXXX")"
 trap cleanup EXIT HUP INT TERM
