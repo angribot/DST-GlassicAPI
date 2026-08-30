@@ -21,13 +21,12 @@ Usage:
 By default, the update note is built from the version and current English
 changelog entry in modinfo.lua.
 
-Required environment variables:
-  STEAMCMD    Absolute path to the official steamcmd.sh
-  STEAM_USER  Steam account name that owns the Workshop item
+Required at publish time:
+  dst-workshop-uploader  Available in PATH
 
 Options:
   --changenote NOTE  Override the update note; NOTE may contain newlines
-  --dry-run          Build and inspect the payload without invoking SteamCMD
+  --dry-run          Build and inspect the payload without invoking the uploader
   --yes              Skip the interactive Workshop ID confirmation
   -h, --help         Show this help
 
@@ -97,9 +96,6 @@ while (($# > 0)); do
     esac
 done
 
-[[ -n "${STEAMCMD:-}" ]] || die "STEAMCMD is empty; set it to the official steamcmd.sh path"
-[[ -n "${STEAM_USER:-}" ]] || die "STEAM_USER is empty; set it to the Workshop owner account"
-[[ -x "$STEAMCMD" ]] || die "STEAMCMD is not executable: $STEAMCMD"
 [[ -f "$CONFIG" ]] || die "Workshop config not found: $CONFIG"
 [[ -f "$TEMPLATE" ]] || die "VDF template not found: $TEMPLATE"
 
@@ -191,7 +187,7 @@ printf '\nGenerated VDF:\n'
 sed 's/^/  /' "$VDF_FILE"
 
 if [[ "$DRY_RUN" == true ]]; then
-    printf '\nDry run complete; SteamCMD was not invoked.\n'
+    printf '\nDry run complete; uploader was not invoked.\n'
     exit 0
 fi
 
@@ -202,11 +198,6 @@ if [[ "$ASSUME_YES" != true ]]; then
     [[ "$confirmation" == "$PUBLISHED_FILE_ID" ]] || die "publication cancelled"
 fi
 
-"$STEAMCMD" \
-    +@ShutdownOnFailedCommand 1 \
-    +@NoPromptForPassword 1 \
-    +login "$STEAM_USER" \
-    +workshop_build_item "$VDF_FILE" \
-    +quit
+dst-workshop-uploader "$VDF_FILE"
 
-printf '\nSteamCMD finished publishing Workshop item %s.\n' "$PUBLISHED_FILE_ID"
+printf '\nUploader finished publishing Workshop item %s.\n' "$PUBLISHED_FILE_ID"
