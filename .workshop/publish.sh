@@ -53,6 +53,60 @@ vdf_escape() {
     printf -v "$2" '%s' "$escaped"
 }
 
+generate_mod_manifest() {
+    local content_dir="$1"
+
+    MOD_CONTENT_DIR="$content_dir" perl -MFile::Find -e '
+        use strict;
+        use warnings;
+        use bytes;
+
+        my $root = $ENV{MOD_CONTENT_DIR};
+        my @paths;
+
+        find(
+            {
+                no_chdir => 1,
+                wanted => sub {
+                    return unless -f $File::Find::name;
+
+                    my $path = $File::Find::name;
+                    my $prefix = "$root/";
+                    die "payload file is outside its root: $path\n"
+                        unless index($path, $prefix) == 0;
+
+                    $path = substr($path, length($prefix));
+                    $path =~ tr{\\}{/};
+                    return if $path eq "mod.manifest";
+                    push @paths, $path;
+                },
+            },
+            $root,
+        );
+
+        @paths = sort { $a cmp $b } @paths;
+        die "payload contains no files\n" unless @paths;
+
+        # Klei mod.manifest v1: "MNFS" + LE32 version + LE32 file count,
+        # followed by one LE32 SDBM hash per lowercase payload-relative path.
+        open my $manifest, ">:raw", "$root/mod.manifest"
+            or die "could not create mod.manifest: $!\n";
+        print {$manifest} "MNFS", pack("V2", 1, scalar @paths)
+            or die "could not write mod.manifest: $!\n";
+
+        for my $path (@paths) {
+            my $hash = 0;
+            for my $byte (unpack("C*", lc $path)) {
+                $hash = ($byte + $hash * 65599) & 0xffffffff;
+            }
+            print {$manifest} pack("V", $hash)
+                or die "could not write mod.manifest: $!\n";
+        }
+
+        close $manifest or die "could not close mod.manifest: $!\n";
+    '
+}
+
 extract_current_changelog() {
     perl -0777 -e '
         $_ = <>;
@@ -134,6 +188,11 @@ readonly VDF_FILE="$WORK_DIR/item.vdf"
 mkdir -p "$CONTENT_DIR"
 
 git -C "$REPO_ROOT" archive --format=tar HEAD -- "${CONTENT_PATHS[@]}" | tar -xf - -C "$CONTENT_DIR"
+
+if ! generate_mod_manifest "$CONTENT_DIR"; then
+    die "could not generate mod.manifest"
+fi
+[[ -s "$CONTENT_DIR/mod.manifest" ]] || die "generated mod.manifest is empty"
 
 VERSION="$(awk -F'"' '/^[[:space:]]*version[[:space:]]*=[[:space:]]*"/ { print $2; exit }' "$CONTENT_DIR/modinfo.lua")"
 [[ -n "$VERSION" ]] || die "could not read version from modinfo.lua"
