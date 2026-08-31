@@ -6,14 +6,15 @@ local function zheng(zh, en)
 	return LOC[locale] or en
 end
 
-version = "4.2.7"
+version = "4.2.8"
 name = "Glassic API"
 author = zheng("鸭子乐园", "Ducklantis")
 -- stylua: ignore
 changelog = zheng([[
-- 增加通用动作API。
+- 修复发布器缺失的 mod.manifest
 
 最近更新：
+- 增加通用动作API。
 - GetFullInventory增加一处条件判断。
 - 修复一处崩溃。
 - AnimState.GetSkinBuild现在会回落到Entity.GetSkinBuild。
@@ -21,9 +22,10 @@ changelog = zheng([[
 - 官方皮肤不会被视为模组皮肤了。
 - 调整了reskin_tool的can_cast_fn的后处理写法。
 ]], [[
-- Add common action API.
+- Fix missing mod.manifest
 
 Recent Changes:
+- Add common action API.
 - Add condition in fn GetFullInventory.
 - Fix a crash.
 - AnimState.GetSkinBuild will now fallback to Entity.GetSkinBuild.
