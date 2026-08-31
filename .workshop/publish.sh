@@ -22,7 +22,7 @@ By default, the update note is built from the version and current English
 changelog entry in modinfo.lua.
 
 Required at publish time:
-  dst-workshop-uploader  Available in PATH
+  steam-workshop-uploader  Available in PATH
 
 Options:
   --changenote NOTE  Override the update note; NOTE may contain newlines
@@ -127,7 +127,7 @@ done < <(git -C "$REPO_ROOT" ls-tree -z HEAD)
 
 ((${#CONTENT_PATHS[@]} > 0)) || die "HEAD contains no publishable top-level directories or Lua, XML, or TeX files"
 
-WORK_DIR="$(mktemp -d "${TMPDIR:-/tmp}/glassicapi-workshop.XXXXXX")"
+WORK_DIR="$(mktemp -d "${TMPDIR:-/tmp}/workshop-${APP_ID}-XXXXXX")"
 trap cleanup EXIT HUP INT TERM
 readonly CONTENT_DIR="$WORK_DIR/content"
 readonly VDF_FILE="$WORK_DIR/item.vdf"
@@ -198,6 +198,6 @@ if [[ "$ASSUME_YES" != true ]]; then
     [[ "$confirmation" == "$PUBLISHED_FILE_ID" ]] || die "publication cancelled"
 fi
 
-dst-workshop-uploader "$VDF_FILE"
+steam-workshop-uploader "$VDF_FILE"
 
 printf '\nUploader finished publishing Workshop item %s.\n' "$PUBLISHED_FILE_ID"
