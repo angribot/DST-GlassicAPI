@@ -142,6 +142,62 @@ extract_current_changelog() {
     ' "$1"
 }
 
+extract_mod_type() {
+    perl -0777 -e '
+        use strict;
+        use warnings;
+
+        my $source = <>;
+        my @fields = qw(client_only_mod all_clients_require_mod);
+        my (%occurrences, %declarations, %values);
+
+        sub blank {
+            my ($text) = @_;
+            $text =~ s/[^\r\n]/ /g;
+            return $text;
+        }
+
+        # Blank comments and strings before looking for assignments. Newlines are
+        # retained so declarations must still occupy their own source line.
+        $source =~ s{(?:--)?\[(=*)\[.*?\]\1\]}{blank($&)}gse;
+        $source =~ s{"(?:\\.|[^"\\])*"|\x27(?:\\.|[^\x27\\])*\x27}{blank($&)}gse;
+        $source =~ s{--[^\r\n]*}{blank($&)}ge;
+
+        for my $field (@fields) {
+            $occurrences{$field}++ while $source =~ /\b\Q$field\E[\t ]*=/g;
+        }
+
+        while ($source =~ /^[\t ]*(client_only_mod|all_clients_require_mod)[\t ]*=[\t ]*([^\r\n]*)/mg) {
+            my ($field, $value) = ($1, $2);
+            $declarations{$field}++;
+            $value =~ s/[\t ]*;?[\t ]*\z//;
+
+            die "$field must be assigned the literal true or false\n"
+                unless $value eq "true" || $value eq "false";
+            die "$field must not be declared more than once\n"
+                if $declarations{$field} > 1;
+
+            $values{$field} = $value;
+        }
+
+        for my $field (@fields) {
+            die "$field must be a top-level literal assignment\n"
+                if ($occurrences{$field} // 0) != ($declarations{$field} // 0);
+        }
+
+        my $client_only = ($values{client_only_mod} // "false") eq "true";
+        my $all_clients = ($values{all_clients_require_mod} // "false") eq "true";
+        die "client_only_mod and all_clients_require_mod must not both be true\n"
+            if $client_only && $all_clients;
+
+        print $client_only
+            ? "client_only_mod"
+            : $all_clients
+                ? "all_clients_require_mod"
+                : "server_only_mod";
+    ' "$1"
+}
+
 while (($# > 0)); do
     case "$1" in
         --changenote)
@@ -192,6 +248,8 @@ if ! jq -e '
         error("tags must not contain control characters")
     elif (.tags | length) != (.tags | unique | length) then
         error("tags must not contain duplicates")
+    elif any(.tags[]; test("^(client_only_mod|all_clients_require_mod|server_only_mod)$"; "i")) then
+        error("type tags are generated automatically from modinfo.lua")
     elif any(.tags[]; test("^version:"; "i")) then
         error("version tags are generated automatically")
     else
@@ -243,6 +301,9 @@ fi
 VERSION="$(awk -F'"' '/^[[:space:]]*version[[:space:]]*=[[:space:]]*"/ { print $2; exit }' "$CONTENT_DIR/modinfo.lua")"
 [[ -n "$VERSION" ]] || die "could not read version from modinfo.lua"
 
+MOD_TYPE="$(extract_mod_type "$CONTENT_DIR/modinfo.lua")" || die "could not determine mod type from modinfo.lua"
+readonly MOD_TYPE
+
 if [[ "$CHANGE_NOTE_SET" == true ]]; then
     CHANGE_NOTE="${CHANGE_NOTE//$'\r\n'/$'\n'}"
     [[ "$CHANGE_NOTE" != *$'\r'* ]] || die "--changenote contains an unsupported carriage return"
@@ -264,6 +325,11 @@ while IFS= read -r tag; do
     TAG_INDEX=$((TAG_INDEX + 1))
 done < <(jq -r '.tags[]' "$CONFIG")
 
+vdf_escape "$MOD_TYPE" TAG_VDF
+printf -v TAG_ENTRY '        "%s" "%s"' "$TAG_INDEX" "$TAG_VDF"
+TAGS_VDF+="${TAGS_VDF:+$'\n'}$TAG_ENTRY"
+TAG_INDEX=$((TAG_INDEX + 1))
+
 vdf_escape "version:$VERSION" TAG_VDF
 printf -v TAG_ENTRY '        "%s" "%s"' "$TAG_INDEX" "$TAG_VDF"
 TAGS_VDF+="${TAGS_VDF:+$'\n'}$TAG_ENTRY"
@@ -279,6 +345,7 @@ printf '\nWorkshop release summary\n'
 printf '  App ID:            %s\n' "$APP_ID"
 printf '  Published file ID: %s\n' "$PUBLISHED_FILE_ID"
 printf '  Version:           %s\n' "$VERSION"
+printf '  Mod type:          %s\n' "$MOD_TYPE"
 printf '  Git commit:        %s\n' "$(git -C "$REPO_ROOT" rev-parse --short HEAD)"
 printf '  Change note:\n'
 printf '%s\n' "$CHANGE_NOTE" | sed 's/^/    /'
