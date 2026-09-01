@@ -4,8 +4,8 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(git -C "$SCRIPT_DIR" rev-parse --show-toplevel)"
-CONFIG="$SCRIPT_DIR/config"
-TEMPLATE="$SCRIPT_DIR/item.vdf.template"
+readonly APP_ID="322330"
+CONFIG="$SCRIPT_DIR/config.json"
 
 CHANGE_NOTE=""
 CHANGE_NOTE_SET=false
@@ -21,8 +21,9 @@ Usage:
 By default, the update note is built from the version and current English
 changelog entry in modinfo.lua.
 
-Required at publish time:
-  steam-workshop-uploader  Available in PATH
+Required:
+  jq                       Available in PATH
+  steam-workshop-uploader  Available in PATH unless using --dry-run
 
 Options:
   --changenote NOTE  Override the update note; NOTE may contain newlines
@@ -51,6 +52,23 @@ vdf_escape() {
     local escaped="${1//\\/\\\\}"
     escaped="${escaped//\"/\\\"}"
     printf -v "$2" '%s' "$escaped"
+}
+
+generate_vdf() {
+    cat >"$VDF_FILE" <<EOF
+"workshopitem"
+{
+    "appid"           "$APP_ID_VDF"
+    "publishedfileid" "$PUBLISHED_FILE_ID_VDF"
+    "contentfolder"   "$CONTENT_FOLDER_VDF"
+    "changenote"      "$CHANGE_NOTE_VDF"
+
+    "tags"
+    {
+$TAGS_VDF
+    }
+}
+EOF
 }
 
 generate_mod_manifest() {
@@ -150,14 +168,42 @@ while (($# > 0)); do
     esac
 done
 
+command -v jq >/dev/null 2>&1 || die "jq is required but was not found in PATH"
 [[ -f "$CONFIG" ]] || die "Workshop config not found: $CONFIG"
-[[ -f "$TEMPLATE" ]] || die "VDF template not found: $TEMPLATE"
 
-APP_ID="$(sed -n 's/^APP_ID=//p' "$CONFIG")"
-PUBLISHED_FILE_ID="$(sed -n 's/^PUBLISHED_FILE_ID=//p' "$CONFIG")"
-[[ "$APP_ID" =~ ^[1-9][0-9]*$ ]] || die "APP_ID must be a non-zero numeric ID"
-[[ "$PUBLISHED_FILE_ID" =~ ^[1-9][0-9]*$ ]] || die "PUBLISHED_FILE_ID must be a non-zero numeric ID"
-readonly APP_ID PUBLISHED_FILE_ID
+if ! jq -e '
+    if type != "object" then
+        error("root must be an object")
+    elif keys != ["publishedFileId", "tags"] then
+        error("only publishedFileId and tags are allowed")
+    elif (.publishedFileId | type) != "number"
+        or (.publishedFileId | floor) != .publishedFileId
+        or .publishedFileId <= 0 then
+        error("publishedFileId must be an integer greater than zero")
+    elif (.tags | type) != "array" then
+        error("tags must be an array")
+    elif any(.tags[]; type != "string") then
+        error("every tag must be a string")
+    elif any(.tags[]; length == 0) then
+        error("tags must not be empty")
+    elif any(.tags[]; test("^\\s|\\s$")) then
+        error("tags must not have leading or trailing whitespace")
+    elif any(.tags[]; test("[[:cntrl:]]")) then
+        error("tags must not contain control characters")
+    elif (.tags | length) != (.tags | unique | length) then
+        error("tags must not contain duplicates")
+    elif any(.tags[]; test("^version:"; "i")) then
+        error("version tags are generated automatically")
+    else
+        true
+    end
+' "$CONFIG" >/dev/null; then
+    die "invalid Workshop config: $CONFIG"
+fi
+
+PUBLISHED_FILE_ID="$(jq -r '.publishedFileId | tostring' "$CONFIG")"
+[[ "$PUBLISHED_FILE_ID" =~ ^[1-9][0-9]*$ ]] || die "publishedFileId must use decimal integer notation"
+readonly PUBLISHED_FILE_ID
 
 [[ -z "$(git -C "$REPO_ROOT" status --porcelain)" ]] || die "working tree is not clean"
 
@@ -207,28 +253,27 @@ else
     CHANGE_NOTE="$(printf 'Version: %s\n\nChanges:\n%s' "$VERSION" "$CURRENT_CHANGELOG")"
 fi
 
+TAGS_VDF=""
+TAG_VDF=""
+TAG_ENTRY=""
+TAG_INDEX=0
+while IFS= read -r tag; do
+    vdf_escape "$tag" TAG_VDF
+    printf -v TAG_ENTRY '        "%s" "%s"' "$TAG_INDEX" "$TAG_VDF"
+    TAGS_VDF+="${TAGS_VDF:+$'\n'}$TAG_ENTRY"
+    TAG_INDEX=$((TAG_INDEX + 1))
+done < <(jq -r '.tags[]' "$CONFIG")
+
+vdf_escape "version:$VERSION" TAG_VDF
+printf -v TAG_ENTRY '        "%s" "%s"' "$TAG_INDEX" "$TAG_VDF"
+TAGS_VDF+="${TAGS_VDF:+$'\n'}$TAG_ENTRY"
+
 vdf_escape "$APP_ID" APP_ID_VDF
 vdf_escape "$PUBLISHED_FILE_ID" PUBLISHED_FILE_ID_VDF
 vdf_escape "$CONTENT_DIR" CONTENT_FOLDER_VDF
 vdf_escape "$CHANGE_NOTE" CHANGE_NOTE_VDF
-vdf_escape "$VERSION" VERSION_VDF
 
-APP_ID_VDF="$APP_ID_VDF" \
-PUBLISHED_FILE_ID_VDF="$PUBLISHED_FILE_ID_VDF" \
-CONTENT_FOLDER_VDF="$CONTENT_FOLDER_VDF" \
-CHANGE_NOTE_VDF="$CHANGE_NOTE_VDF" \
-VERSION_VDF="$VERSION_VDF" \
-perl -pe '
-    s/\{\{APP_ID\}\}/$ENV{APP_ID_VDF}/g;
-    s/\{\{PUBLISHED_FILE_ID\}\}/$ENV{PUBLISHED_FILE_ID_VDF}/g;
-    s/\{\{CONTENT_FOLDER\}\}/$ENV{CONTENT_FOLDER_VDF}/g;
-    s/\{\{CHANGE_NOTE\}\}/$ENV{CHANGE_NOTE_VDF}/g;
-    s/\{\{VERSION\}\}/$ENV{VERSION_VDF}/g;
-' "$TEMPLATE" >"$VDF_FILE"
-
-if grep -q '{{[^}]*}}' "$VDF_FILE"; then
-    die "the generated VDF contains unresolved placeholders"
-fi
+generate_vdf
 
 printf '\nWorkshop release summary\n'
 printf '  App ID:            %s\n' "$APP_ID"
