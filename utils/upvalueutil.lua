@@ -30,7 +30,7 @@ local function GetUpvalue(fn, path)
 end
 
 local function SetUpvalue(start_fn, path, new_fn)
-	local fn, fn_i, scope_fn = GetUpvalue(start_fn, path)
+	local _, fn_i, scope_fn = GetUpvalue(start_fn, path)
 	if not fn_i then
 		print("Didn't find " .. path .. " from", start_fn)
 		return

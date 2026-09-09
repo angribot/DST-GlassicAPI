@@ -11,7 +11,7 @@ function CommonAction:SetAction(action)
 	self.action = action
 end
 
----@param action string | function
+---@param state string | function
 function CommonAction:SetActionState(state)
 	self.state = state
 	self.action.state = state

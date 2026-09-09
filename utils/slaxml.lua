@@ -1,3 +1,4 @@
+---@diagnostic disable
 --[=====================================================================[
 v0.8 Copyright © 2013-2018 Gavin Kistner <!@phrogz.net>; MIT Licensed
 See http://github.com/Phrogz/SLAXML for details.

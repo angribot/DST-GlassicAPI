@@ -7,7 +7,7 @@ local OVERRIDE_RARITY_DATA = {}
 local CHARACTER_EXCLUSIVE_SKINS = {}
 local OFFICIAL_PREFAB_SKINS = {}
 
-for prefab, skins in pairs(PREFAB_SKINS) do
+for _, skins in pairs(PREFAB_SKINS) do
 	for _, skin in pairs(skins) do
 		OFFICIAL_PREFAB_SKINS[skin] = true
 	end
@@ -246,11 +246,13 @@ LoadoutSelect._ctor = function(...)
 end
 
 local LoadoutSelect_ShouldShowStartingItemSkinsButton = LoadoutSelect._ShouldShowStartingItemSkinsButton
+---@diagnostic disable-next-line: duplicate-set-field
 function LoadoutSelect:_ShouldShowStartingItemSkinsButton(...) -- :angri:
 	return apply_temp_inv_item_list(LoadoutSelect_ShouldShowStartingItemSkinsButton, self.currentcharacter, self, ...)
 end
 
 local apply_skin_presets = LoadoutSelect.ApplySkinPresets
+---@diagnostic disable-next-line: duplicate-set-field
 LoadoutSelect.ApplySkinPresets = function(...)
 	return apply_temp_character(apply_skin_presets, ...)
 end
@@ -274,16 +276,17 @@ function DefaultSkinSelectionPopup:_ctor(...)
 	return apply_temp_inv_item_list(DefaultSkinSelectionPopup_ctor, self.character, self, ...)
 end
 local DefaultSkinSelectionPopup_GetSkinsList = DefaultSkinSelectionPopup.GetSkinsList
+---@diagnostic disable-next-line: duplicate-set-field
 DefaultSkinSelectionPopup.GetSkinsList = function(self, ...)
-	local check_ownership = InventoryProxy.CheckOwnership
-	InventoryProxy.CheckOwnership = function(self, name, ...)
+	local previous_check_ownership = InventoryProxy.CheckOwnership
+	InventoryProxy.CheckOwnership = function(inventory, name, ...)
 		if not does_character_have_skin(name, self.character) then
 			return false
 		end
-		return check_ownership(self, name, ...)
+		return previous_check_ownership(inventory, name, ...)
 	end
 	local ret = { DefaultSkinSelectionPopup_GetSkinsList(self, ...) }
-	InventoryProxy.CheckOwnership = check_ownership
+	InventoryProxy.CheckOwnership = previous_check_ownership
 	return unpack(ret)
 end
 
@@ -320,7 +323,8 @@ local function add_mod_skins(data)
 end
 
 local AccountItemFrame = require("widgets/redux/accountitemframe")
-local set_rarity = AccountItemFrame._SetRarity
+local original_set_rarity = AccountItemFrame._SetRarity
+---@diagnostic disable-next-line: duplicate-set-field
 AccountItemFrame._SetRarity = function(self, rarity, ...)
 	local mod_rarity_data = OVERRIDE_RARITY_DATA[rarity]
 	if mod_rarity_data then
@@ -328,7 +332,7 @@ AccountItemFrame._SetRarity = function(self, rarity, ...)
 		local symbol = mod_rarity_data.symbol or mod_rarity_data.build and rarity or GetFrameSymbolForRarity(rarity)
 		self:GetAnimState():OverrideSymbol("SWAP_frameBG", build, symbol)
 	else
-		return set_rarity(self, rarity, ...)
+		return original_set_rarity(self, rarity, ...)
 	end
 end
 

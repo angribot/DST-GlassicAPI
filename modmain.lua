@@ -7,7 +7,6 @@ Assets = {}
 PrefabFiles = {}
 PreloadAssets = {}
 
----@diagnostic disable undefined-global
 local ENV = env
 GLOBAL.setfenv(1, GLOBAL)
 
@@ -46,8 +45,10 @@ GlassicAPI.RegisterItemAtlas = function(atlas_path, assets_table)
 			end
 		end,
 	})
-	parser:parse(file:read("*a"))
-	file:close()
+	if file then
+		parser:parse(file:read("*a"))
+		file:close()
+	end
 
 	if assets_table then
 		table.insert(assets_table, Asset("ATLAS", atlas_path))
@@ -66,8 +67,8 @@ end
 -- e.g. GlassicAPI.InitCharacterAssets("civi", "DUCK", Assets)
 -- must set 'assets_table' to Assets.
 -- crafting menu avatar is required since GA 4.2
----@param chat_name string
----@param gender string
+---@param char_name string
+---@param char_gender string
 ---@param assets_table table
 GlassicAPI.InitCharacterAssets = function(char_name, char_gender, assets_table)
 	table.insert(assets_table, Asset("ATLAS", "bigportraits/" .. char_name .. ".xml"))
@@ -96,6 +97,7 @@ end
 
 ---@param tag string
 GlassicAPI.SetExclusiveToTag = function(tag)
+	---@diagnostic disable-next-line unused-local
 	return function(skin_name, userid)
 		local player = GlassicAPI.SkinHandler.GetPlayerFromID(userid) or ThePlayer
 		if player then
@@ -199,12 +201,12 @@ end)
 
 ------------------------------------------------------------------------------------------------------------
 
----@param name string
 local TechTree = require("techtree")
+---@param name string
 local function rebuild_techtree(name)
 	TECH.NONE = TechTree.Create()
 
-	for k, v in pairs(AllRecipes) do
+	for _, v in pairs(AllRecipes) do
 		v.level = TechTree.Create(v.level)
 	end
 
@@ -254,10 +256,11 @@ end
 ------------------------------------------------------------------------------------------------------------
 
 -- set a recipe not listed in search filter or "EVERYTHING".
----@param name string
 local HIDDEN_RECIPES = {}
 local CraftingMenuWidget = require("widgets/redux/craftingmenu_widget")
 local is_recipe_valid_for_search = CraftingMenuWidget.IsRecipeValidForSearch
+---@param name string
+---@diagnostic disable-next-line duplicate-set-filed
 function CraftingMenuWidget:IsRecipeValidForSearch(name)
 	local ret = { is_recipe_valid_for_search(self, name) }
 	if HIDDEN_RECIPES[name] then
@@ -291,6 +294,7 @@ end
 GlassicAPI.AddRecipe = function(name, ingredients, tech, config, filters)
 	init_recipe_print("AddRecipe", name)
 	require("recipe")
+	---@diagnostic disable-next-line lowercase-global
 	mod_protect_Recipe = false
 	local rec = Recipe2(name, ingredients, tech, config)
 
@@ -320,6 +324,7 @@ GlassicAPI.AddRecipe = function(name, ingredients, tech, config, filters)
 		end
 	end
 
+	---@diagnostic disable-next-line lowercase-global
 	mod_protect_Recipe = true
 	rec:SetModRPCID()
 	return rec
@@ -362,7 +367,7 @@ local function try_sorting(a, b, filter_type, offset)
 	if filter_type then
 		do_sorting(a, b, filter_type, offset, true)
 	elseif b then
-		for filter, data in pairs(CRAFTING_FILTERS) do
+		for filter in pairs(CRAFTING_FILTERS) do
 			do_sorting(a, b, filter, offset)
 		end
 	end
@@ -459,10 +464,7 @@ end
 
 local function write_speech(file, base_strings, strings, indent)
 	indent = indent or 1
-	local str = ""
-	for i = 1, indent do
-		str = str .. "\t"
-	end
+	local str = string.rep("\t", indent)
 	for _, k, v in sorted_pairs(strings) do
 		if type(v) == "table" then
 			file:write(str .. k .. " =\n" .. str .. "{\n")
@@ -480,7 +482,7 @@ local function write_speech(file, base_strings, strings, indent)
 	end
 end
 ---@param base_strings table
----@param file string
+---@param file file*
 ---@param source? string
 GlassicAPI.MergeSpeechFile = function(base_strings, file, source)
 	local speech = require(source or "speech_wilson")
@@ -507,7 +509,7 @@ local function write_for_strings(base, data, file)
 	end
 end
 
----@param file string
+---@param file file*
 ---@param strings table of strings
 GlassicAPI.MakePOTFromStrings = function(file, strings)
 	file:write('msgid ""\n')
