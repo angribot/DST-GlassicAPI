@@ -9,7 +9,7 @@ COMMON_ACTION.id = "COMMON_ACTION"
 COMMON_ACTION.str = "COMMON_ACTION"
 AddAction(COMMON_ACTION)
 
-local actionhandler = ActionHandler(COMMON_ACTION, function(inst, bufferedaction)
+local actionhandler = ActionHandler(COMMON_ACTION, function(_, bufferedaction)
 	if bufferedaction.invobject and bufferedaction.invobject.components.commonaction then
 		return bufferedaction.invobject.components.commonaction:GetActionState()
 	elseif bufferedaction.target and bufferedaction.target.components.commonaction then
@@ -51,6 +51,7 @@ AddComponentAction("INVENTORY", "commonaction", function(inst, doer, actions, ri
 end)
 
 local _PreviewAction = StateGraphInstance.PreviewAction
+---@diagnostic disable-next-line duplicate-set-filed
 function StateGraphInstance:PreviewAction(bufferedaction, ...)
 	if self.sg.actionhandlers
 		and not self.sg.actionhandlers[bufferedaction.action]
@@ -62,6 +63,7 @@ function StateGraphInstance:PreviewAction(bufferedaction, ...)
 end
 
 local _StartAction = StateGraphInstance.StartAction
+---@diagnostic disable-next-line duplicate-set-filed
 function StateGraphInstance:StartAction(bufferedaction, ...)
 	if self.sg.actionhandlers
 		and not self.sg.actionhandlers[bufferedaction.action]

@@ -26,7 +26,6 @@ AddPrefabPostInit("reskin_tool", function(inst)
 	if inst.components.spellcaster then
 		local can_cast_fn = inst.components.spellcaster.can_cast_fn
 		inst.components.spellcaster:SetCanCastFn(function(doer, target, ...)
-			local prefab_to_skin = target.prefab
 			if table.contains(MODCHARACTERLIST, target.prefab) then
 				if
 					doer.userid == target.userid
