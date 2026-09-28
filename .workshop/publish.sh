@@ -278,7 +278,7 @@ while IFS= read -r -d '' entry; do
     object_type="${object_type%% *}"
 
     [[ "$content_path" == .* ]] && continue
-    if [[ "$object_type" == tree || "$content_path" == *.lua || "$content_path" == *.xml || "$content_path" == *.tex ]]; then
+    if [[ "$object_type" == tree || "$content_path" == *.lua || "$content_path" == *.xml || "$content_path" == *.tex || "$content_path" == LICENSE ]]; then
         CONTENT_PATHS+=("$content_path")
     fi
 done < <(git -C "$REPO_ROOT" ls-tree -z HEAD)
