@@ -203,34 +203,41 @@ local function apply_temp_character(base_fn, ...)
 	return unpack(ret)
 end
 
+-- Drop skinnable starting items whose skins are all exclusive to other characters.
+local function filter_starting_items(items, char)
+	local filtered = {}
+	for _, item in ipairs(items) do
+		local keep = true
+		local prefab_skins = PREFAB_SKINS[item]
+		if prefab_skins then
+			keep = false
+			for _, skin in ipairs(prefab_skins) do
+				if does_character_have_skin(skin, char) then
+					keep = true
+					break
+				end
+			end
+		end
+		if keep then
+			table.insert(filtered, item)
+		end
+	end
+	return filtered
+end
+
+-- Temporarily wrap GetUniquePotentialCharacterStartingInventoryItems, which returns a copy
+-- (including seasonal/extra items), so TUNING tables are never mutated.
 local function apply_temp_inv_item_list(base_fn, char, ...)
 	if not char then
 		return base_fn(...)
 	end
 
-	local inv_item_list = (
-		TUNING.GAMEMODE_STARTING_ITEMS[TheNet:GetServerGameMode()] or TUNING.GAMEMODE_STARTING_ITEMS.DEFAULT
-	)[string.upper(char)]
-	local copy = shallowcopy(inv_item_list)
-
-	if inv_item_list and #inv_item_list > 0 then
-		for i, item in ipairs(inv_item_list) do
-			if PREFAB_SKINS[item] then
-				local prefab_skins = {}
-				for _, skin in ipairs(PREFAB_SKINS[item]) do
-					if does_character_have_skin(skin, char) then
-						table.insert(prefab_skins, skin)
-					end
-				end
-				if #prefab_skins == 0 then
-					table.remove(inv_item_list, i)
-				end
-			end
-		end
+	local get_starting_items = GetUniquePotentialCharacterStartingInventoryItems
+	GetUniquePotentialCharacterStartingInventoryItems = function(character, ...)
+		return filter_starting_items(get_starting_items(character, ...), character)
 	end
-
 	local ret = { base_fn(...) }
-	inv_item_list = copy
+	GetUniquePotentialCharacterStartingInventoryItems = get_starting_items
 	return unpack(ret)
 end
 
@@ -272,8 +279,9 @@ end
 
 local DefaultSkinSelectionPopup = require("screens/redux/defaultskinselection")
 local DefaultSkinSelectionPopup_ctor = DefaultSkinSelectionPopup._ctor
-function DefaultSkinSelectionPopup:_ctor(...)
-	return apply_temp_inv_item_list(DefaultSkinSelectionPopup_ctor, self.character, self, ...)
+function DefaultSkinSelectionPopup:_ctor(user_profile, character, ...)
+	-- self.character is not set until the original ctor runs, so use the argument.
+	return apply_temp_inv_item_list(DefaultSkinSelectionPopup_ctor, character, self, user_profile, character, ...)
 end
 local DefaultSkinSelectionPopup_GetSkinsList = DefaultSkinSelectionPopup.GetSkinsList
 ---@diagnostic disable-next-line: duplicate-set-field
