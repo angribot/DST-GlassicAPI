@@ -152,13 +152,13 @@ local function generate_skin_id(name)
 	end
 end
 
-local function init_mod_skin(ent, skin)
+local function init_mod_skin(ent, skin, skin_custom)
 	ent.skinname = skin
 	ent.skin_id = generate_skin_id(skin)
 
 	local init_fn = Prefabs[skin].init_fn
 	if init_fn then
-		init_fn(ent)
+		init_fn(ent, skin_custom)
 	end
 end
 
@@ -166,7 +166,7 @@ local spawn_prefab = SpawnPrefab
 SpawnPrefab = function(name, skin, skin_id, creator, ...)
 	local ent = spawn_prefab(name, skin, skin_id, creator, ...)
 	if validate_mod_skin(skin, creator) then
-		init_mod_skin(ent, skin)
+		init_mod_skin(ent, skin, ...)
 	end
 	return ent
 end

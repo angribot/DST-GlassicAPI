@@ -113,8 +113,13 @@ end
 -- before basic init, you need to specify skins' floating swap_data to make the anim switch looks normal.
 ---@param swap_data table
 GlassicAPI.SetFloatData = function(inst, swap_data)
-	if inst.components.floater and swap_data then
-		inst.components.floater.swap_data = swap_data
+	local floater = inst.components.floater
+	if floater and swap_data then
+		if floater.SetSwapData then
+			floater:SetSwapData(swap_data)
+		else
+			floater.swap_data = swap_data
+		end
 	end
 end
 
@@ -130,7 +135,8 @@ end
 
 ---@param symbol string
 ---@param symbol_override string
-local function set_onquip_skin_item(symbol, symbol_override, frame)
+---@param default_build string
+local function set_onquip_skin_item(symbol, symbol_override, default_build)
 	return function(inst)
 		if not TheWorld.ismastersim then
 			return
@@ -138,12 +144,12 @@ local function set_onquip_skin_item(symbol, symbol_override, frame)
 
 		local onequipfn = inst.components.equippable.onequipfn
 		if onequipfn then
-			inst.components.equippable:SetOnEquip(function(_inst, _owner)
-				onequipfn(_inst, _owner)
+			inst.components.equippable:SetOnEquip(function(_inst, _owner, ...)
+				onequipfn(_inst, _owner, ...)
 				local skin_build = _inst:GetSkinBuild()
 				if skin_build then
 					_owner:PushEvent("equipskinneditem", _inst:GetSkinName())
-					_owner.AnimState:OverrideItemSkinSymbol(symbol, skin_build, symbol_override, _inst.GUID, frame)
+					_owner.AnimState:OverrideItemSkinSymbol(symbol, skin_build, symbol_override, _inst.GUID, default_build)
 				end
 			end)
 		end
@@ -154,7 +160,7 @@ end
 -- This is an altanative way to hack into official items without skins.
 -- For modded prefabs, you don't need to use this.
 ---@param name string prefab_name
----@param data table {symbol, symbol_override, frame}
+---@param data table {symbol, symbol_override, default_build}
 --[[e.g.
 	if not rawget(_G, "moonglassaxe_clear_fn") then
 		moonglassaxe_clear_fn = function(inst)
@@ -177,14 +183,23 @@ end
 		...,
 	})
 --]]
+-- This generic helper cannot know each prefab's official filter_fn/def_build
+-- pair. It uses the current build as the fallback build and leaves special
+-- inventory image names to custom init functions.
 GlassicAPI.BasicInitFn = function(inst)
 	if inst.components.placer == nil and not TheWorld.ismastersim then
 		return
 	end
 
-	inst.AnimState:SetSkin(inst:GetSkinBuild())
+	local build_name = inst:GetSkinBuild()
+	local def_build = inst.AnimState:GetBuild()
+	inst.AnimState:SetSkin(build_name, def_build)
 	if inst.components.inventoryitem then
-		inst.components.inventoryitem:ChangeImageName(inst:GetSkinName())
+		local skin_name = inst:GetSkinName()
+		if inst.components.container and inst.components.container:IsOpen() then
+			skin_name = skin_name .. "_open"
+		end
+		inst.components.inventoryitem:ChangeImageName(skin_name)
 	end
 
 	GlassicAPI.UpdateFloaterAnim(inst)
@@ -219,6 +234,9 @@ end
 
 -- custom tech allows you to build custom prototyper or allows muliti prototypers to bonus a tech simultaneously.
 -- e.g. GlassicAPI.AddTech("FRIENDSHIPRING")
+-- NOTE: TechTree builds AVAILABLE_TECH_* caches at load time. Current consumers
+-- (builder/player_classified) fall back to string.lower(name).."_..." keys, so
+-- updating the public arrays is enough for now; do not write the cache tables here.
 ---@param name string
 ---@param bonus_available? boolean
 GlassicAPI.AddTech = function(name, bonus_available)
@@ -275,14 +293,7 @@ local function init_recipe_print(...)
 	end
 end
 
-local add_recipe_to_filter = function(recipe_name, filter_name)
-	init_recipe_print("AddRecipeToFilter", recipe_name)
-	local filter = CRAFTING_FILTERS[filter_name]
-	if filter ~= nil and filter.default_sort_values[recipe_name] == nil then
-		table.insert(filter.recipes, recipe_name)
-		filter.default_sort_values[recipe_name] = #filter.recipes
-	end
-end
+local add_recipe_to_filter = AddRecipeToFilter
 -- a smarter way to add a mod recipe, and you don't need to think about filters too much.
 -- also, with confog.hidden, you can set your recipe no searching or in "EVERYTHING" filter.
 -- same format as AddRecipe2
