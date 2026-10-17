@@ -6,16 +6,20 @@ local function zheng(zh, en)
 	return LOC[locale] or en
 end
 
-version = "4.2.9"
+version = "4.2.10"
 name = "Glassic API"
 author = zheng("鸭子乐园", "Ducklantis")
 -- stylua: ignore
 changelog = zheng([[
+- 修复模组皮肤初始化丢失skin_custom、默认build和容器打开状态的问题
+- 修复CommonAction未同步mod_name导致动作RPC解析异常
+- Floater优先使用官方SetSwapData接口，保留IA兼容回退
+- 复用官方AddRecipeToFilter并补齐SetOnequipSkinItem参数转发
+
+最近更新：
 - 修复初始物品过滤会永久修改TUNING的问题
 - 修复DefaultSkinSelectionPopup中角色专属皮肤过滤不生效
 - reskin_tool对模组角色复用官方的can_cast_fn检查
-
-最近更新：
 - 修复发布器缺失的 mod.manifest
 - 增加通用动作API。
 - GetFullInventory增加一处条件判断。
@@ -25,11 +29,15 @@ changelog = zheng([[
 - 官方皮肤不会被视为模组皮肤了。
 - 调整了reskin_tool的can_cast_fn的后处理写法。
 ]], [[
+- Fix mod skin initialization dropping skin_custom, default build, and open-container state
+- Fix CommonAction not copying mod_name, which broke action RPC resolution
+- Prefer official Floater:SetSwapData while keeping the IA fallback
+- Reuse AddRecipeToFilter and forward SetOnequipSkinItem arguments
+
+Recent Changes:
 - Fix starting item filter permanently modifying TUNING
 - Fix character exclusive skin filter not working in DefaultSkinSelectionPopup
 - Reuse official "can_cast_fn" checks for mod characters in "main/reskin_tool"
-
-Recent Changes:
 - Fix missing mod.manifest
 - Add common action API.
 - Add condition in fn GetFullInventory.
