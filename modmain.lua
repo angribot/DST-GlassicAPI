@@ -293,7 +293,7 @@ local function init_recipe_print(...)
 	end
 end
 
-local add_recipe_to_filter = AddRecipeToFilter
+local add_recipe_to_filter = ENV.AddRecipeToFilter
 -- a smarter way to add a mod recipe, and you don't need to think about filters too much.
 -- also, with confog.hidden, you can set your recipe no searching or in "EVERYTHING" filter.
 -- same format as AddRecipe2
