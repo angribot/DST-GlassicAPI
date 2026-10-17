@@ -7,6 +7,7 @@ end)
 ---@param action table
 function CommonAction:SetAction(action)
 	action.code = ACTIONS.COMMON_ACTION.code
+	action.mod_name = ACTIONS.COMMON_ACTION.mod_name
 	action.id = action.id or action.str or ACTIONS.COMMON_ACTION.id
 	self.action = action
 end
