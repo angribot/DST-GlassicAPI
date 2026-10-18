@@ -152,13 +152,21 @@ local function generate_skin_id(name)
 	end
 end
 
-local function init_mod_skin(ent, skin, skin_custom)
+local function init_mod_skin(ent, skin, skin_custom, force_init)
+	local needs_init = force_init or ent.skinname ~= skin
+
 	ent.skinname = skin
 	ent.skin_id = generate_skin_id(skin)
 
-	local init_fn = Prefabs[skin].init_fn
-	if init_fn then
-		init_fn(ent, skin_custom)
+	-- The engine runs Prefabs[skin].init_fn(ent, skin_custom) when it applies a
+	-- skin (SpawnPrefab with a skin_id, or a successful ReskinEntity). SpawnPrefab
+	-- without a skin_id is not applied by the engine, so those skins still need
+	-- to be initialized here.
+	if needs_init then
+		local init_fn = Prefabs[skin].init_fn
+		if init_fn then
+			init_fn(ent, skin_custom)
+		end
 	end
 end
 
@@ -176,9 +184,10 @@ Sim.ReskinEntity = function(self, guid, targetskinname, reskinname, skin_id, use
 	local ent = Ents[guid]
 	-- Reskin Entity
 	local ret = { reskin_entity(self, guid, targetskinname, reskinname, skin_id, userid, ...) }
-	-- Execute mod skin init_fn
+	-- Execute mod skin init_fn. Reskinning to the same skin is forced because a
+	-- rejected ReskinEntity may already have run the old skin's clear_fn.
 	if validate_mod_skin(reskinname, userid) then
-		init_mod_skin(ent, reskinname)
+		init_mod_skin(ent, reskinname, nil, targetskinname == reskinname)
 	end
 	return unpack(ret)
 end
