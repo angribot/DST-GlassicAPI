@@ -6,17 +6,23 @@ local function zheng(zh, en)
 	return LOC[locale] or en
 end
 
-version = "4.2.12"
+version = "4.2.13"
 name = "Glassic API"
 author = zheng("鸭子乐园", "Ducklantis")
 -- stylua: ignore
 changelog = zheng([[
+- 模组调用API注册的配方与后处理现在归属调用方模组，不再归到GlassicAPI名下
+- AddRecipe默认filter对齐官方：nounlock进工作站，builder_tag/builder_skill进角色，其余进模组
+- CommonAction同时匹配code与mod_name，避免与其他模组的动作冲突
+- SetOnequipSkinItem改为监听equipped事件，不再包装onequipfn
+- 角色专属皮肤与test_fn改为同时满足，移除皮肤时一并清除专属标记
+- MergeTranslationFromPO只应用本次合并的条目
+
+最近更新：
 - 修复CommonAction状态函数收不到当前动作的问题
 - SetOnequipSkinItem在缺少equippable组件时跳过，并补发unequipskinneditem事件
 - 修复MergeTranslationFromPO在目标语言未加载时崩溃的问题
 - 减少皮肤校验与配方搜索中的重复计算
-
-最近更新：
 - 修复引擎已初始化模组皮肤时重复执行init_fn的问题
 - 修复同一皮肤reskin被拒绝后未重新初始化的问题
 - 修复模组皮肤初始化丢失skin_custom、默认build和容器打开状态的问题
@@ -35,12 +41,18 @@ changelog = zheng([[
 - 官方皮肤不会被视为模组皮肤了。
 - 调整了reskin_tool的can_cast_fn的后处理写法。
 ]], [[
+- Recipes and post-init data registered through the API are now attributed to the calling mod instead of GlassicAPI
+- AddRecipe default filters match the official ones: nounlock goes to the crafting station, builder_tag/builder_skill to the character, everything else to the mods filter
+- CommonAction matches on code and mod_name, so actions from other mods no longer collide
+- SetOnequipSkinItem listens on the equipped event instead of wrapping onequipfn
+- Character exclusive skins now also require their test_fn, and removing a skin clears its exclusive entry
+- MergeTranslationFromPO only applies the entries it merged
+
+Recent Changes:
 - Fix CommonAction state functions not receiving the current action
 - SetOnequipSkinItem skips prefabs without an equippable component and pushes unequipskinneditem
 - Fix MergeTranslationFromPO crashing when the target language is not loaded
 - Cut redundant work in skin validation and recipe search
-
-Recent Changes:
 - Fix duplicate mod skin init_fn calls when the engine already initialized the skin
 - Fix mod skins not reinitializing after a rejected same-skin reskin
 - Fix mod skin initialization dropping skin_custom, default build, and open-container state
