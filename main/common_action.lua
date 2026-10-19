@@ -11,9 +11,9 @@ AddAction(COMMON_ACTION)
 
 local actionhandler = ActionHandler(COMMON_ACTION, function(_, bufferedaction)
 	if bufferedaction.invobject and bufferedaction.invobject.components.commonaction then
-		return bufferedaction.invobject.components.commonaction:GetActionState()
+		return bufferedaction.invobject.components.commonaction:GetActionState(bufferedaction)
 	elseif bufferedaction.target and bufferedaction.target.components.commonaction then
-		return bufferedaction.target.components.commonaction:GetActionState()
+		return bufferedaction.target.components.commonaction:GetActionState(bufferedaction)
 	end
 	return "dolongaction"
 end)

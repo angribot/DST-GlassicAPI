@@ -40,6 +40,10 @@ local function remove_mod_skin(skin)
 end
 
 local function validate_mod_skin(skin, userid)
+	-- Same result as the full check below, without scanning AllPlayers for non-mod skins.
+	if not ALL_MOD_SKINS[skin] and not CHARACTER_EXCLUSIVE_SKINS[skin] then
+		return
+	end
 	local test_fn = ALL_MOD_SKINS[skin]
 	if userid then
 		local player = get_player_from_id(userid)
@@ -77,8 +81,9 @@ end
 local get_full_inventory = InventoryProxy.GetFullInventory
 InventoryProxy.GetFullInventory = function(...)
 	local items = get_full_inventory(...)
+	local userid = TheNet:GetUserID()
 	for skin_name in pairs(ALL_MOD_SKINS) do
-		if validate_mod_skin(skin_name, TheNet:GetUserID()) then
+		if validate_mod_skin(skin_name, userid) then
 			table.insert(items, {
 				item_type = skin_name,
 				modified_time = 0,
@@ -113,23 +118,14 @@ InventoryProxy.CheckOwnershipGetLatest = function(self, item_type, ...)
 	return check_ownership_get_latest(self, item_type, ...)
 end
 
-local anim_state_to_entity = {}
-
-local function clean_up_mapping(inst)
-	if inst.AnimState then
-		anim_state_to_entity[inst.AnimState] = nil
-	end
-end
+-- Weak values: Ents holds each entity until OnRemoveEntity, after which the entry is
+-- collected with the entity, so no per-entity "onremove" listener is needed.
+local anim_state_to_entity = setmetatable({}, { __mode = "v" })
 
 local add_anim_state = Entity.AddAnimState
 function Entity:AddAnimState(...)
 	local anim_state = add_anim_state(self, ...)
-
-	local guid = self:GetGUID()
-	local inst = Ents[guid]
-	anim_state_to_entity[anim_state] = inst
-	inst:ListenForEvent("onremove", clean_up_mapping)
-
+	anim_state_to_entity[anim_state] = Ents[self:GetGUID()]
 	return anim_state
 end
 
@@ -146,7 +142,7 @@ local function generate_skin_id(name)
 		local sid = TheWorld.meta.session_identifier
 		local str = name .. sid
 		for i = 1, #str do
-			res = ((res * 0x21) % 0x80000000) + string.byte(str:sub(i, i))
+			res = ((res * 0x21) % 0x80000000) + string.byte(str, i)
 		end
 		return res
 	end
@@ -313,7 +309,8 @@ end
 
 local function add_mod_skins(data)
 	for base_prefab, prefab_skins in pairs(data) do
-		if is_character(base_prefab) then
+		local base_is_character = is_character(base_prefab)
+		if base_is_character then
 			HEADSKIN_CHARACTERS[base_prefab] = true
 		end
 		if not PREFAB_SKINS[base_prefab] then
@@ -321,7 +318,7 @@ local function add_mod_skins(data)
 		end
 		for _, skin_data in ipairs(prefab_skins) do
 			local skin_name = type(skin_data) == "table" and skin_data.name or skin_data
-			if is_character(base_prefab) and skin_name ~= base_prefab .. "_none" then
+			if base_is_character and skin_name ~= base_prefab .. "_none" then
 				if not SKIN_AFFINITY_INFO[base_prefab] then
 					SKIN_AFFINITY_INFO[base_prefab] = {}
 				end

@@ -142,14 +142,31 @@ local function set_onquip_skin_item(symbol, symbol_override, default_build)
 			return
 		end
 
-		local onequipfn = inst.components.equippable.onequipfn
+		local equippable = inst.components.equippable
+		if not equippable then
+			return
+		end
+
+		local onequipfn = equippable.onequipfn
 		if onequipfn then
-			inst.components.equippable:SetOnEquip(function(_inst, _owner, ...)
+			equippable:SetOnEquip(function(_inst, _owner, ...)
 				onequipfn(_inst, _owner, ...)
 				local skin_build = _inst:GetSkinBuild()
 				if skin_build then
 					_owner:PushEvent("equipskinneditem", _inst:GetSkinName())
 					_owner.AnimState:OverrideItemSkinSymbol(symbol, skin_build, symbol_override, _inst.GUID, default_build)
+				end
+			end)
+
+			-- Pair with "equipskinneditem" like official prefabs do (e.g. prefabs/axe.lua),
+			-- so listeners such as worldoverseer can close the worn item record.
+			local onunequipfn = equippable.onunequipfn
+			equippable:SetOnUnequip(function(_inst, _owner, ...)
+				if onunequipfn then
+					onunequipfn(_inst, _owner, ...)
+				end
+				if _inst:GetSkinBuild() then
+					_owner:PushEvent("unequipskinneditem", _inst:GetSkinName())
 				end
 			end)
 		end
@@ -217,18 +234,17 @@ end)
 ------------------------------------------------------------------------------------------------------------
 
 local TechTree = require("techtree")
----@param name string
-local function rebuild_techtree(name)
+-- TechTree.Create fills missing AVAILABLE_TECH keys with 0 in place, so it must run
+-- after the new tech has been inserted into AVAILABLE_TECH.
+local function rebuild_techtree()
 	TECH.NONE = TechTree.Create()
 
 	for _, v in pairs(AllRecipes) do
 		v.level = TechTree.Create(v.level)
 	end
 
-	for k, v in pairs(TUNING.PROTOTYPER_TREES) do
-		v = TechTree.Create(v)
-		TUNING.PROTOTYPER_TREES[k] = TUNING.PROTOTYPER_TREES[k] or {}
-		TUNING.PROTOTYPER_TREES[k][name] = TUNING.PROTOTYPER_TREES[k][name] or 0
+	for _, v in pairs(TUNING.PROTOTYPER_TREES) do
+		TechTree.Create(v)
 	end
 end
 
@@ -244,7 +260,7 @@ GlassicAPI.AddTech = function(name, bonus_available)
 	if bonus_available then
 		table.insert(TechTree.BONUS_TECH, name)
 	end
-	rebuild_techtree(name)
+	rebuild_techtree()
 end
 
 -- custom prototyper trees.
@@ -280,11 +296,11 @@ local is_recipe_valid_for_search = CraftingMenuWidget.IsRecipeValidForSearch
 ---@param name string
 ---@diagnostic disable-next-line duplicate-set-filed
 function CraftingMenuWidget:IsRecipeValidForSearch(name)
-	local ret = { is_recipe_valid_for_search(self, name) }
+	-- OnUpdate still fills searched_recipes for hidden recipes in the background.
 	if HIDDEN_RECIPES[name] then
 		return
 	end
-	return unpack(ret)
+	return is_recipe_valid_for_search(self, name)
 end
 
 local function init_recipe_print(...)
@@ -456,6 +472,12 @@ GlassicAPI.MergeTranslationFromPO = function(base_path, override_lang)
 	end
 	local temp_lang = lang .. "_temp"
 	LanguageTranslator:LoadPOFile(filepath, temp_lang)
+	if not (LanguageTranslator.languages[lang] and LanguageTranslator.languages[temp_lang]) then
+		print("Glassic API: no loaded translation for " .. tostring(lang) .. ", skip merging " .. filepath)
+		LanguageTranslator.languages[temp_lang] = nil
+		LanguageTranslator.defaultlang = _defaultlang
+		return
+	end
 	merge_internal(LanguageTranslator.languages[lang], LanguageTranslator.languages[temp_lang])
 	TranslateStringTable(STRINGS)
 	LanguageTranslator.languages[temp_lang] = nil
@@ -543,7 +565,6 @@ ModManager.InitializeModMain = function(self, _modname, env, mainfile, ...)
 	return initialize_modmain(self, _modname, env, mainfile, ...)
 end
 
--- GLOBAL.GlassicAPI = GlassicAPI
 ENV.GlassicAPI = GlassicAPI
 
 local main_files = {
