@@ -34,7 +34,7 @@ end
 ---@param atlas_path string
 ---@param assets_table table
 GlassicAPI.RegisterItemAtlas = function(atlas_path, assets_table)
-	atlas_path = resolvefilepath("images/" .. (atlas_path:find(".xml") and atlas_path or atlas_path .. ".xml"))
+	atlas_path = resolvefilepath("images/" .. (atlas_path:find(".xml", 1, true) and atlas_path or atlas_path .. ".xml"))
 
 	local images = {}
 	local file = io.open(atlas_path, "r")
@@ -67,10 +67,11 @@ end
 -- e.g. GlassicAPI.InitCharacterAssets("civi", "DUCK", Assets)
 -- must set 'assets_table' to Assets.
 -- crafting menu avatar is required since GA 4.2
+---@param mod_env table
 ---@param char_name string
 ---@param char_gender string
 ---@param assets_table table
-GlassicAPI.InitCharacterAssets = function(char_name, char_gender, assets_table)
+local function init_character_assets(mod_env, char_name, char_gender, assets_table)
 	table.insert(assets_table, Asset("ATLAS", "bigportraits/" .. char_name .. ".xml"))
 	table.insert(assets_table, Asset("ATLAS", "bigportraits/" .. char_name .. "_none.xml"))
 	table.insert(assets_table, Asset("ATLAS", "images/names_" .. char_name .. ".xml"))
@@ -80,17 +81,26 @@ GlassicAPI.InitCharacterAssets = function(char_name, char_gender, assets_table)
 	table.insert(assets_table, Asset("ATLAS", "images/saveslot_portraits/" .. char_name .. ".xml"))
 	table.insert(assets_table, Asset("ATLAS", "images/crafting_menu_avatars/avatar_" .. char_name .. ".xml"))
 
-	ENV.AddModCharacter(char_name, char_gender)
+	mod_env.AddModCharacter(char_name, char_gender)
 end
 
+GlassicAPI.InitCharacterAssets = function(...)
+	return init_character_assets(ENV, ...)
+end
+
+---@param mod_env table
 ---@param path_to_file string
 ---@param assets_table table
-GlassicAPI.InitMinimapAtlas = function(path_to_file, assets_table)
+local function init_minimap_atlas(mod_env, path_to_file, assets_table)
 	local file = "images/" .. path_to_file .. ".xml"
 	if assets_table then
 		table.insert(assets_table, Asset("ATLAS", file))
 	end
-	ENV.AddMinimapAtlas(file)
+	mod_env.AddMinimapAtlas(file)
+end
+
+GlassicAPI.InitMinimapAtlas = function(...)
+	return init_minimap_atlas(ENV, ...)
 end
 
 --------------------------------------------------------------------------------
@@ -142,42 +152,35 @@ local function set_onquip_skin_item(symbol, symbol_override, default_build)
 			return
 		end
 
-		local equippable = inst.components.equippable
-		if not equippable then
+		if not inst.components.equippable then
 			return
 		end
 
-		local onequipfn = equippable.onequipfn
-		if onequipfn then
-			equippable:SetOnEquip(function(_inst, _owner, ...)
-				onequipfn(_inst, _owner, ...)
-				local skin_build = _inst:GetSkinBuild()
-				if skin_build then
-					_owner:PushEvent("equipskinneditem", _inst:GetSkinName())
-					_owner.AnimState:OverrideItemSkinSymbol(symbol, skin_build, symbol_override, _inst.GUID, default_build)
-				end
-			end)
-
-			-- Pair with "equipskinneditem" like official prefabs do (e.g. prefabs/axe.lua),
-			-- so listeners such as worldoverseer can close the worn item record.
-			local onunequipfn = equippable.onunequipfn
-			equippable:SetOnUnequip(function(_inst, _owner, ...)
-				if onunequipfn then
-					onunequipfn(_inst, _owner, ...)
-				end
-				if _inst:GetSkinBuild() then
-					_owner:PushEvent("unequipskinneditem", _inst:GetSkinName())
-				end
-			end)
-		end
+		-- Listening on the item's own "equipped" event keeps working when another mod
+		-- replaces onequipfn later. Only "equipskinneditem" is pushed: prefabs that
+		-- already handle their own skin push it too, and a second unequip push would
+		-- close a different worn-item record in worldoverseer.
+		inst:ListenForEvent("equipped", function(_inst, data)
+			local owner = data and data.owner
+			local skin_build = _inst:GetSkinBuild()
+			if owner and skin_build then
+				owner:PushEvent("equipskinneditem", _inst:GetSkinName())
+				owner.AnimState:OverrideItemSkinSymbol(symbol, skin_build, symbol_override, _inst.GUID, default_build)
+			end
+		end)
 	end
 end
 
 -- Set OverrideItemSkinSymbol for official items that has no skin.
 -- This is an altanative way to hack into official items without skins.
 -- For modded prefabs, you don't need to use this.
+---@param mod_env table
 ---@param name string prefab_name
 ---@param data table {symbol, symbol_override, default_build}
+local function add_onquip_skin_item(mod_env, name, data)
+	mod_env.AddPrefabPostInit(name, set_onquip_skin_item(unpack(data)))
+end
+
 --[[e.g.
 	if not rawget(_G, "moonglassaxe_clear_fn") then
 		moonglassaxe_clear_fn = function(inst)
@@ -189,7 +192,7 @@ end
 	end
 --]]
 GlassicAPI.SetOnequipSkinItem = function(name, data)
-	ENV.AddPrefabPostInit(name, set_onquip_skin_item(unpack(data)))
+	return add_onquip_skin_item(ENV, name, data)
 end
 
 -- The common init fn for skinned prefabs.
@@ -309,16 +312,36 @@ local function init_recipe_print(...)
 	end
 end
 
-local add_recipe_to_filter = ENV.AddRecipeToFilter
+-- Picks the default filter the same way official AddRecipe2/AddCharacterRecipe do:
+-- exactly one of CRAFTING_STATION, CHARACTER, MODS. nomods/nochar only suppress
+-- the branch they belong to.
+local function get_default_recipe_filter(config)
+	if not config then
+		return CRAFTING_FILTERS.MODS.name
+	end
+	if config.nounlock then
+		return CRAFTING_FILTERS.CRAFTING_STATION.name
+	end
+	if config.builder_tag or config.builder_skill then
+		if config.nochar == nil then
+			return CRAFTING_FILTERS.CHARACTER.name
+		end
+	end
+	if config.nomods == nil then
+		return CRAFTING_FILTERS.MODS.name
+	end
+end
+
 -- a smarter way to add a mod recipe, and you don't need to think about filters too much.
--- also, with confog.hidden, you can set your recipe no searching or in "EVERYTHING" filter.
+-- also, with config.hidden, you can set your recipe no searching or in "EVERYTHING" filter.
 -- same format as AddRecipe2
+---@param mod_env table
 ---@param name string
 ---@param ingredients table
 ---@param tech table
 ---@param config? table
 ---@param filters? table
-GlassicAPI.AddRecipe = function(name, ingredients, tech, config, filters)
+local function add_recipe(mod_env, name, ingredients, tech, config, filters)
 	init_recipe_print("AddRecipe", name)
 	require("recipe")
 	---@diagnostic disable-next-line lowercase-global
@@ -326,16 +349,9 @@ GlassicAPI.AddRecipe = function(name, ingredients, tech, config, filters)
 	local rec = Recipe2(name, ingredients, tech, config)
 
 	if not rec.is_deconstruction_recipe then
-		if config and config.nounlock then
-			add_recipe_to_filter(name, CRAFTING_FILTERS.CRAFTING_STATION.name)
-		end
-
-		if config and config.builder_tag and config.nochar == nil then
-			add_recipe_to_filter(name, CRAFTING_FILTERS.CHARACTER.name)
-		end
-
-		if config and config.nomods == nil then
-			add_recipe_to_filter(name, CRAFTING_FILTERS.MODS.name)
+		local default_filter = get_default_recipe_filter(config)
+		if default_filter then
+			mod_env.AddRecipeToFilter(name, default_filter)
 		end
 
 		if config and config.hidden then
@@ -346,7 +362,7 @@ GlassicAPI.AddRecipe = function(name, ingredients, tech, config, filters)
 
 		if filters then
 			for _, filter_name in ipairs(filters) do
-				add_recipe_to_filter(name, filter_name)
+				mod_env.AddRecipeToFilter(name, filter_name)
 			end
 		end
 	end
@@ -355,6 +371,10 @@ GlassicAPI.AddRecipe = function(name, ingredients, tech, config, filters)
 	mod_protect_Recipe = true
 	rec:SetModRPCID()
 	return rec
+end
+
+GlassicAPI.AddRecipe = function(...)
+	return add_recipe(ENV, ...)
 end
 
 ------------------------------------------------------------------------------------------------------------
@@ -450,6 +470,30 @@ GlassicAPI.MergeStringsToGLOBAL = function(strings, custom_field, no_override)
 	merge_internal(custom_field or STRINGS, strings, no_override)
 end
 
+---@param strings table<string, string> keys like "STRINGS.UI.TEXT"
+local function apply_translations(strings)
+	for path, value in pairs(strings) do
+		local parts = {}
+		for part in path:gmatch("[^%.]+") do
+			parts[#parts + 1] = part
+		end
+		if parts[1] == "STRINGS" and #parts > 1 then
+			local node = STRINGS
+			for i = 2, #parts - 1 do
+				if type(node[parts[i]]) ~= "table" then
+					node = nil
+					break
+				end
+				node = node[parts[i]]
+			end
+			local leaf = parts[#parts]
+			if node and type(node[leaf]) == "string" then
+				node[leaf] = value
+			end
+		end
+	end
+end
+
 local CHS_CODES = {
 	zh = "chinese_s", -- Simplified Chinese
 	zht = "chinese_t", -- Traditional Chinese
@@ -472,16 +516,18 @@ GlassicAPI.MergeTranslationFromPO = function(base_path, override_lang)
 	end
 	local temp_lang = lang .. "_temp"
 	LanguageTranslator:LoadPOFile(filepath, temp_lang)
-	if not (LanguageTranslator.languages[lang] and LanguageTranslator.languages[temp_lang]) then
-		print("Glassic API: no loaded translation for " .. tostring(lang) .. ", skip merging " .. filepath)
-		LanguageTranslator.languages[temp_lang] = nil
-		LanguageTranslator.defaultlang = _defaultlang
-		return
-	end
-	merge_internal(LanguageTranslator.languages[lang], LanguageTranslator.languages[temp_lang])
-	TranslateStringTable(STRINGS)
+	local merged = LanguageTranslator.languages[temp_lang]
+	local target = LanguageTranslator.languages[lang]
 	LanguageTranslator.languages[temp_lang] = nil
 	LanguageTranslator.defaultlang = _defaultlang
+	if not (target and merged) then
+		print("Glassic API: no loaded translation for " .. tostring(lang) .. ", skip merging " .. filepath)
+		return
+	end
+	merge_internal(target, merged)
+	-- Only the entries this PO contributed are applied: re-running the whole STRINGS
+	-- table would overwrite strings other mods already set.
+	apply_translations(merged)
 end
 
 -- Basically LanguageTranslator.ConvertEscapeCharactersToString, but replace "\"s first
@@ -557,10 +603,44 @@ GlassicAPI.MakePOTFromStrings = function(file, strings)
 	file:close()
 end
 
+-- Functions that register post-init data or recipes run once per mod at load time: bound
+-- to the calling mod's env so failures are attributed to that mod and its priority
+-- decides the run order. Everything else is read straight from GlassicAPI.
+local env_apis = setmetatable({}, { __mode = "k" })
+local function get_env_api(mod_env)
+	if mod_env == ENV then
+		return GlassicAPI
+	end
+	local api = env_apis[mod_env]
+	if not api then
+		api = {
+			InitCharacterAssets = function(...)
+				return init_character_assets(mod_env, ...)
+			end,
+			InitMinimapAtlas = function(...)
+				return init_minimap_atlas(mod_env, ...)
+			end,
+			SetOnequipSkinItem = function(...)
+				return add_onquip_skin_item(mod_env, ...)
+			end,
+			AddRecipe = function(...)
+				return add_recipe(mod_env, ...)
+			end,
+		}
+		setmetatable(api, {
+			__index = function(_, key)
+				return GlassicAPI[key]
+			end,
+		})
+		env_apis[mod_env] = api
+	end
+	return api
+end
+
 local initialize_modmain = ModManager.InitializeModMain
 ModManager.InitializeModMain = function(self, _modname, env, mainfile, ...)
 	if mainfile == "modmain.lua" then
-		env.GlassicAPI = GlassicAPI
+		env.GlassicAPI = get_env_api(env)
 	end
 	return initialize_modmain(self, _modname, env, mainfile, ...)
 end
