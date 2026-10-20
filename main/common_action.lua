@@ -4,7 +4,7 @@ local AddStategraphActionHandler = AddStategraphActionHandler
 GLOBAL.setfenv(1, GLOBAL)
 
 local HIGH_ACTION_PRIORITY = 10
-local COMMON_ACTION = Action({priority = HIGH_ACTION_PRIORITY})
+local COMMON_ACTION = Action({ priority = HIGH_ACTION_PRIORITY })
 COMMON_ACTION.id = "COMMON_ACTION"
 COMMON_ACTION.str = "COMMON_ACTION"
 AddAction(COMMON_ACTION)
@@ -51,25 +51,24 @@ AddComponentAction("INVENTORY", "commonaction", function(inst, doer, actions, ri
 end)
 
 local _PreviewAction = StateGraphInstance.PreviewAction
+
+-- Actions from other mods share the code counter, so match mod_name too. Only actions
+-- registered by this mod get the common action handler injected.
+local function ensure_common_action_handler(sg, action)
+	if sg.actionhandlers and not sg.actionhandlers[action] and action.code == ACTIONS.COMMON_ACTION.code and action.mod_name == ACTIONS.COMMON_ACTION.mod_name then
+		sg.actionhandlers[action] = sg.actionhandlers[ACTIONS.COMMON_ACTION]
+	end
+end
+
 ---@diagnostic disable-next-line duplicate-set-filed
 function StateGraphInstance:PreviewAction(bufferedaction, ...)
-	if self.sg.actionhandlers
-		and not self.sg.actionhandlers[bufferedaction.action]
-		and bufferedaction.action.code == ACTIONS.COMMON_ACTION.code
-	then
-		self.sg.actionhandlers[bufferedaction.action] = self.sg.actionhandlers[ACTIONS.COMMON_ACTION]
-	end
+	ensure_common_action_handler(self.sg, bufferedaction.action)
 	return _PreviewAction(self, bufferedaction, ...)
 end
 
 local _StartAction = StateGraphInstance.StartAction
 ---@diagnostic disable-next-line duplicate-set-filed
 function StateGraphInstance:StartAction(bufferedaction, ...)
-	if self.sg.actionhandlers
-		and not self.sg.actionhandlers[bufferedaction.action]
-		and bufferedaction.action.code == ACTIONS.COMMON_ACTION.code
-	then
-		self.sg.actionhandlers[bufferedaction.action] = self.sg.actionhandlers[ACTIONS.COMMON_ACTION]
-	end
+	ensure_common_action_handler(self.sg, bufferedaction.action)
 	return _StartAction(self, bufferedaction, ...)
 end

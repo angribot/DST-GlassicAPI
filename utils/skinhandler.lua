@@ -37,22 +37,18 @@ end
 
 local function remove_mod_skin(skin)
 	ALL_MOD_SKINS[skin] = nil
+	CHARACTER_EXCLUSIVE_SKINS[skin] = nil
 end
 
 local function validate_mod_skin(skin, userid)
-	-- Same result as the full check below, without scanning AllPlayers for non-mod skins.
-	if not ALL_MOD_SKINS[skin] and not CHARACTER_EXCLUSIVE_SKINS[skin] then
-		return
-	end
-	local test_fn = ALL_MOD_SKINS[skin]
-	if userid then
-		local player = get_player_from_id(userid)
-		local characters = CHARACTER_EXCLUSIVE_SKINS[skin]
-		if player and characters then
-			return table.contains(characters, player.prefab)
+	local characters = CHARACTER_EXCLUSIVE_SKINS[skin]
+	if characters then
+		local player = userid and get_player_from_id(userid) or nil
+		if player and not table.contains(characters, player.prefab) then
+			return false
 		end
 	end
-	return FunctionOrValue(test_fn, skin, userid)
+	return FunctionOrValue(ALL_MOD_SKINS[skin], skin, userid)
 end
 
 local function set_character_exlusive_skin(skin, characters)
