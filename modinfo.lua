@@ -6,11 +6,16 @@ local function zheng(zh, en)
 	return LOC[locale] or en
 end
 
-version = "4.2.13"
+version = "4.2.14"
 name = "Glassic API"
 author = zheng("鸭子乐园", "Ducklantis")
 changelog = zheng(
 	[[
+- Fix MergeTranslationFromPO crashing on missing translation paths while preserving unrelated strings
+- SetOnequipSkinItem callback errors now identify the registering mod and prefab while retaining the original traceback
+- Remove the obsolete moonglassaxe helper example and clarify SetOnequipSkinItem event behavior
+
+最近更新：
 - 模组调用API注册的配方与后处理现在归属调用方模组，不再归到GlassicAPI名下
 - AddRecipe默认filter对齐官方：nounlock进工作站，builder_tag/builder_skill进角色，其余进模组
 - CommonAction同时匹配code与mod_name，避免与其他模组的动作冲突
@@ -18,8 +23,6 @@ changelog = zheng(
 - 撤回4.2.12中"SetOnequipSkinItem补发unequipskinneditem事件"的改动；4.2.12新增的该事件会与自带此事件的官方prefab重复，导致装备记录被错误关闭
 - 角色专属皮肤与test_fn改为同时满足，移除皮肤时一并清除专属标记
 - MergeTranslationFromPO只应用本次合并的条目
-
-最近更新：
 - 修复CommonAction状态函数收不到当前动作的问题
 - SetOnequipSkinItem在缺少equippable组件时跳过，并补发unequipskinneditem事件
 - 修复MergeTranslationFromPO在目标语言未加载时崩溃的问题
@@ -43,6 +46,11 @@ changelog = zheng(
 - 调整了reskin_tool的can_cast_fn的后处理写法。
 ]],
 	[[
+- Fix MergeTranslationFromPO crashing on missing translation paths while preserving unrelated strings
+- SetOnequipSkinItem callback errors now identify the registering mod and prefab while retaining the original traceback
+- Remove the obsolete moonglassaxe helper example and clarify SetOnequipSkinItem event behavior
+
+Recent Changes:
 - Recipes and post-init data registered through the API are now attributed to the calling mod instead of GlassicAPI
 - AddRecipe default filters match the official ones: nounlock goes to the crafting station, builder_tag/builder_skill to the character, everything else to the mods filter
 - CommonAction matches on code and mod_name, so actions from other mods no longer collide
@@ -50,8 +58,6 @@ changelog = zheng(
 - Revert the unequipskinneditem push added in 4.2.12: official prefabs that already push it got a duplicate event, which closed the wrong worn-item record
 - Character exclusive skins now also require their test_fn, and removing a skin clears its exclusive entry
 - MergeTranslationFromPO only applies the entries it merged
-
-Recent Changes:
 - Fix CommonAction state functions not receiving the current action
 - SetOnequipSkinItem skips prefabs without an equippable component and pushes unequipskinneditem
 - Fix MergeTranslationFromPO crashing when the target language is not loaded
