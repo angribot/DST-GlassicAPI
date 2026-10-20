@@ -11,9 +11,9 @@ name = "Glassic API"
 author = zheng("鸭子乐园", "Ducklantis")
 changelog = zheng(
 	[[
-- Fix MergeTranslationFromPO crashing on missing translation paths while preserving unrelated strings
-- SetOnequipSkinItem callback errors now identify the registering mod and prefab while retaining the original traceback
-- Remove the obsolete moonglassaxe helper example and clarify SetOnequipSkinItem event behavior
+- 修复MergeTranslationFromPO在翻译路径不存在时崩溃的问题，保留无关字符串
+- SetOnequipSkinItem回调报错时显示注册方模组与prefab，并保留原始错误堆栈
+- 移除过时的moonglassaxe辅助函数示例，明确SetOnequipSkinItem的事件行为
 
 最近更新：
 - 模组调用API注册的配方与后处理现在归属调用方模组，不再归到GlassicAPI名下
