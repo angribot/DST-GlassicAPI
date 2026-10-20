@@ -580,9 +580,6 @@ local ENV_API = {
 
 local env_apis = setmetatable({}, { __mode = "k" })
 local function get_env_api(mod_env)
-	if mod_env == ENV then
-		return GlassicAPI
-	end
 	local api = env_apis[mod_env]
 	if not api then
 		api = {}
