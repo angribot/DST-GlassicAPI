@@ -37,9 +37,7 @@ end
 ---@param pos table | nil
 ---@param right boolean | nil
 function CommonAction:CollectActions(type, actions, inst, doer, target, pos, right)
-	if self.action
-		and self.component_actions[type] and self.component_actions[type](inst, doer, target, pos, right)
-	then
+	if self.action and self.component_actions[type] and self.component_actions[type](inst, doer, target, pos, right) then
 		table.insert(actions, self.action)
 	end
 end

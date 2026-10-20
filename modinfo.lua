@@ -9,8 +9,8 @@ end
 version = "4.2.13"
 name = "Glassic API"
 author = zheng("鸭子乐园", "Ducklantis")
--- stylua: ignore
-changelog = zheng([[
+changelog = zheng(
+	[[
 - 模组调用API注册的配方与后处理现在归属调用方模组，不再归到GlassicAPI名下
 - AddRecipe默认filter对齐官方：nounlock进工作站，builder_tag/builder_skill进角色，其余进模组
 - CommonAction同时匹配code与mod_name，避免与其他模组的动作冲突
@@ -41,7 +41,8 @@ changelog = zheng([[
 - 为GlassicAPI.AddTech增加了一个传入参数。
 - 官方皮肤不会被视为模组皮肤了。
 - 调整了reskin_tool的can_cast_fn的后处理写法。
-]], [[
+]],
+	[[
 - Recipes and post-init data registered through the API are now attributed to the calling mod instead of GlassicAPI
 - AddRecipe default filters match the official ones: nounlock goes to the crafting station, builder_tag/builder_skill to the character, everything else to the mods filter
 - CommonAction matches on code and mod_name, so actions from other mods no longer collide
@@ -72,13 +73,14 @@ Recent Changes:
 - Add 2rd param for GlassicAPI.AddTech.
 - Official skins are now ignored by "AddModSkin" fn.
 - Rewrite "can_cast_fn" in "main/reskin_tool".
-]])
+]]
+)
 description = zheng("版本: ", "Version: ")
-		.. version
-		.. zheng("\n\n更新内容:\n", "\n\nChanges:\n")
-		.. changelog
-		.. "\n"
-		.. zheng("“帮助你快速创建一个模组以及制作皮肤。”", '"helps create mod and mod skins quickly."')
+	.. version
+	.. zheng("\n\n更新内容:\n", "\n\nChanges:\n")
+	.. changelog
+	.. "\n"
+	.. zheng("“帮助你快速创建一个模组以及制作皮肤。”", '"helps create mod and mod skins quickly."')
 
 priority = 2147483647
 
