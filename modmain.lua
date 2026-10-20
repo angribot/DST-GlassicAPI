@@ -84,10 +84,6 @@ local function init_character_assets(mod_env, char_name, char_gender, assets_tab
 	mod_env.AddModCharacter(char_name, char_gender)
 end
 
-GlassicAPI.InitCharacterAssets = function(...)
-	return init_character_assets(ENV, ...)
-end
-
 ---@param mod_env table
 ---@param path_to_file string
 ---@param assets_table table
@@ -97,10 +93,6 @@ local function init_minimap_atlas(mod_env, path_to_file, assets_table)
 		table.insert(assets_table, Asset("ATLAS", file))
 	end
 	mod_env.AddMinimapAtlas(file)
-end
-
-GlassicAPI.InitMinimapAtlas = function(...)
-	return init_minimap_atlas(ENV, ...)
 end
 
 --------------------------------------------------------------------------------
@@ -143,11 +135,13 @@ end
 
 ------------------------------------------------------------------------------------------------------------
 
----@param symbol string
----@param symbol_override string
----@param default_build string
-local function set_onquip_skin_item(symbol, symbol_override, default_build)
-	return function(inst)
+---@param mod_env table
+---@param name string prefab_name
+---@param data table {symbol, symbol_override, default_build}
+local function add_onquip_skin_item(mod_env, name, data)
+	local symbol, symbol_override, default_build = unpack(data)
+
+	mod_env.AddPrefabPostInit(name, function(inst)
 		if not TheWorld.ismastersim then
 			return
 		end
@@ -160,27 +154,20 @@ local function set_onquip_skin_item(symbol, symbol_override, default_build)
 		-- replaces onequipfn later. Only "equipskinneditem" is pushed: prefabs that
 		-- already handle their own skin push it too, and a second unequip push would
 		-- close a different worn-item record in worldoverseer.
-		inst:ListenForEvent("equipped", function(_inst, data)
-			local owner = data and data.owner
+		inst:ListenForEvent("equipped", function(_inst, event_data)
+			local owner = event_data and event_data.owner
 			local skin_build = _inst:GetSkinBuild()
 			if owner and skin_build then
 				owner:PushEvent("equipskinneditem", _inst:GetSkinName())
 				owner.AnimState:OverrideItemSkinSymbol(symbol, skin_build, symbol_override, _inst.GUID, default_build)
 			end
 		end)
-	end
+	end)
 end
 
 -- Set OverrideItemSkinSymbol for official items that has no skin.
 -- This is an altanative way to hack into official items without skins.
 -- For modded prefabs, you don't need to use this.
----@param mod_env table
----@param name string prefab_name
----@param data table {symbol, symbol_override, default_build}
-local function add_onquip_skin_item(mod_env, name, data)
-	mod_env.AddPrefabPostInit(name, set_onquip_skin_item(unpack(data)))
-end
-
 --[[e.g.
 	if not rawget(_G, "moonglassaxe_clear_fn") then
 		moonglassaxe_clear_fn = function(inst)
@@ -191,10 +178,6 @@ end
 		GlassicAPI.SetOnequipSkinItem("moonglassaxe", {"swap_object", "swap_glassaxe", "swap_glassaxe"})
 	end
 --]]
-GlassicAPI.SetOnequipSkinItem = function(name, data)
-	return add_onquip_skin_item(ENV, name, data)
-end
-
 -- The common init fn for skinned prefabs.
 --[[usage:
 	CreatePrefabskin("skin_name", {
@@ -315,17 +298,14 @@ end
 -- Picks the default filter the same way official AddRecipe2/AddCharacterRecipe do:
 -- exactly one of CRAFTING_STATION, CHARACTER, MODS. nomods/nochar only suppress
 -- the branch they belong to.
+---@param config? table
 local function get_default_recipe_filter(config)
-	if not config then
-		return CRAFTING_FILTERS.MODS.name
-	end
+	config = config or {}
 	if config.nounlock then
 		return CRAFTING_FILTERS.CRAFTING_STATION.name
 	end
-	if config.builder_tag or config.builder_skill then
-		if config.nochar == nil then
-			return CRAFTING_FILTERS.CHARACTER.name
-		end
+	if (config.builder_tag or config.builder_skill) and config.nochar == nil then
+		return CRAFTING_FILTERS.CHARACTER.name
 	end
 	if config.nomods == nil then
 		return CRAFTING_FILTERS.MODS.name
@@ -354,11 +334,7 @@ local function add_recipe(mod_env, name, ingredients, tech, config, filters)
 			mod_env.AddRecipeToFilter(name, default_filter)
 		end
 
-		if config and config.hidden then
-			HIDDEN_RECIPES[name] = true
-		elseif HIDDEN_RECIPES[name] then
-			HIDDEN_RECIPES[name] = nil
-		end
+		HIDDEN_RECIPES[name] = (config and config.hidden) or nil
 
 		if filters then
 			for _, filter_name in ipairs(filters) do
@@ -371,10 +347,6 @@ local function add_recipe(mod_env, name, ingredients, tech, config, filters)
 	mod_protect_Recipe = true
 	rec:SetModRPCID()
 	return rec
-end
-
-GlassicAPI.AddRecipe = function(...)
-	return add_recipe(ENV, ...)
 end
 
 ------------------------------------------------------------------------------------------------------------
@@ -473,23 +445,16 @@ end
 ---@param strings table<string, string> keys like "STRINGS.UI.TEXT"
 local function apply_translations(strings)
 	for path, value in pairs(strings) do
-		local parts = {}
-		for part in path:gmatch("[^%.]+") do
-			parts[#parts + 1] = part
+		local rest = path:match("^STRINGS%.(.+)$")
+		local node, last = rest and STRINGS, nil
+		for part in (rest or ""):gmatch("[^%.]+") do
+			if last ~= nil then
+				node = type(node[last]) == "table" and node[last] or nil
+			end
+			last = part
 		end
-		if parts[1] == "STRINGS" and #parts > 1 then
-			local node = STRINGS
-			for i = 2, #parts - 1 do
-				if type(node[parts[i]]) ~= "table" then
-					node = nil
-					break
-				end
-				node = node[parts[i]]
-			end
-			local leaf = parts[#parts]
-			if node and type(node[leaf]) == "string" then
-				node[leaf] = value
-			end
+		if node and type(node[last]) == "string" then
+			node[last] = value
 		end
 	end
 end
@@ -606,6 +571,13 @@ end
 -- Functions that register post-init data or recipes run once per mod at load time: bound
 -- to the calling mod's env so failures are attributed to that mod and its priority
 -- decides the run order. Everything else is read straight from GlassicAPI.
+local ENV_API = {
+	InitCharacterAssets = init_character_assets,
+	InitMinimapAtlas = init_minimap_atlas,
+	SetOnequipSkinItem = add_onquip_skin_item,
+	AddRecipe = add_recipe,
+}
+
 local env_apis = setmetatable({}, { __mode = "k" })
 local function get_env_api(mod_env)
 	if mod_env == ENV then
@@ -613,28 +585,22 @@ local function get_env_api(mod_env)
 	end
 	local api = env_apis[mod_env]
 	if not api then
-		api = {
-			InitCharacterAssets = function(...)
-				return init_character_assets(mod_env, ...)
-			end,
-			InitMinimapAtlas = function(...)
-				return init_minimap_atlas(mod_env, ...)
-			end,
-			SetOnequipSkinItem = function(...)
-				return add_onquip_skin_item(mod_env, ...)
-			end,
-			AddRecipe = function(...)
-				return add_recipe(mod_env, ...)
-			end,
-		}
-		setmetatable(api, {
-			__index = function(_, key)
-				return GlassicAPI[key]
-			end,
-		})
+		api = {}
+		for name, fn in pairs(ENV_API) do
+			api[name] = function(...)
+				return fn(mod_env, ...)
+			end
+		end
+		setmetatable(api, { __index = GlassicAPI })
 		env_apis[mod_env] = api
 	end
 	return api
+end
+
+for name, fn in pairs(ENV_API) do
+	GlassicAPI[name] = function(...)
+		return fn(ENV, ...)
+	end
 end
 
 local initialize_modmain = ModManager.InitializeModMain
