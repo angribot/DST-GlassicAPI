@@ -4,7 +4,7 @@ local AddStategraphActionHandler = AddStategraphActionHandler
 GLOBAL.setfenv(1, GLOBAL)
 
 local HIGH_ACTION_PRIORITY = 10
-local COMMON_ACTION = Action({priority = HIGH_ACTION_PRIORITY})
+local COMMON_ACTION = Action({ priority = HIGH_ACTION_PRIORITY })
 COMMON_ACTION.id = "COMMON_ACTION"
 COMMON_ACTION.str = "COMMON_ACTION"
 AddAction(COMMON_ACTION)
@@ -54,12 +54,8 @@ local _PreviewAction = StateGraphInstance.PreviewAction
 
 -- Actions from other mods share the code counter, so match mod_name too. Only actions
 -- registered by this mod get the common action handler injected.
-local function is_common_action(action)
-	return action.code == ACTIONS.COMMON_ACTION.code and action.mod_name == ACTIONS.COMMON_ACTION.mod_name
-end
-
 local function ensure_common_action_handler(sg, action)
-	if sg.actionhandlers and not sg.actionhandlers[action] and is_common_action(action) then
+	if sg.actionhandlers and not sg.actionhandlers[action] and action.code == ACTIONS.COMMON_ACTION.code and action.mod_name == ACTIONS.COMMON_ACTION.mod_name then
 		sg.actionhandlers[action] = sg.actionhandlers[ACTIONS.COMMON_ACTION]
 	end
 end

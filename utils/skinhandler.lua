@@ -41,10 +41,6 @@ local function remove_mod_skin(skin)
 end
 
 local function validate_mod_skin(skin, userid)
-	-- Same result as the full check below, without scanning AllPlayers for non-mod skins.
-	if not ALL_MOD_SKINS[skin] and not CHARACTER_EXCLUSIVE_SKINS[skin] then
-		return
-	end
 	local characters = CHARACTER_EXCLUSIVE_SKINS[skin]
 	if characters then
 		local player = userid and get_player_from_id(userid) or nil
