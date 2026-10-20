@@ -135,6 +135,10 @@ end
 
 ------------------------------------------------------------------------------------------------------------
 
+-- SetOnequipSkinItem adds an equip skin symbol override and sends "equipskinneditem".
+-- It does not send "unequipskinneditem" or deduplicate events from the prefab.
+-- Official moonglassaxe already handles the skin symbol and both events in axe.lua;
+-- it does not need this helper. Modded prefabs can implement their own equip callbacks.
 ---@param mod_env table
 ---@param name string prefab_name
 ---@param data table {symbol, symbol_override, default_build}
@@ -151,33 +155,24 @@ local function add_onquip_skin_item(mod_env, name, data)
 		end
 
 		-- Listening on the item's own "equipped" event keeps working when another mod
-		-- replaces onequipfn later. Only "equipskinneditem" is pushed: prefabs that
-		-- already handle their own skin push it too, and a second unequip push would
-		-- close a different worn-item record in worldoverseer.
+		-- replaces onequipfn later. This callback runs outside the post-init error wrapper,
+		-- so include the registering mod without losing the original traceback.
 		inst:ListenForEvent("equipped", function(_inst, event_data)
-			local owner = event_data and event_data.owner
-			local skin_build = _inst:GetSkinBuild()
-			if owner and skin_build then
-				owner:PushEvent("equipskinneditem", _inst:GetSkinName())
-				owner.AnimState:OverrideItemSkinSymbol(symbol, skin_build, symbol_override, _inst.GUID, default_build)
+			local ok, err = xpcall(function()
+				local owner = event_data and event_data.owner
+				local skin_build = _inst:GetSkinBuild()
+				if owner and skin_build then
+					owner:PushEvent("equipskinneditem", _inst:GetSkinName())
+					owner.AnimState:OverrideItemSkinSymbol(symbol, skin_build, symbol_override, _inst.GUID, default_build)
+				end
+			end, debug.traceback)
+			if not ok then
+				error("GlassicAPI.SetOnequipSkinItem registered by " .. mod_env.modname .. " for " .. name .. ":\n" .. err, 0)
 			end
 		end)
 	end)
 end
 
--- Set OverrideItemSkinSymbol for official items that has no skin.
--- This is an altanative way to hack into official items without skins.
--- For modded prefabs, you don't need to use this.
---[[e.g.
-	if not rawget(_G, "moonglassaxe_clear_fn") then
-		moonglassaxe_clear_fn = function(inst)
-			inst.AnimState:SetBank("glassaxe")
-			GlassicAPI.SetFloatData(inst, { sym_build = "swap_glassaxe" })
-			basic_clear_fn(inst, "glassaxe")
-		end
-		GlassicAPI.SetOnequipSkinItem("moonglassaxe", {"swap_object", "swap_glassaxe", "swap_glassaxe"})
-	end
---]]
 -- The common init fn for skinned prefabs.
 --[[usage:
 	CreatePrefabskin("skin_name", {
@@ -450,6 +445,9 @@ local function apply_translations(strings)
 		for part in (rest or ""):gmatch("[^%.]+") do
 			if last ~= nil then
 				node = type(node[last]) == "table" and node[last] or nil
+				if node == nil then
+					break
+				end
 			end
 			last = part
 		end
