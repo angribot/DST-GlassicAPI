@@ -10,7 +10,8 @@ PreloadAssets = {}
 local ENV = env
 GLOBAL.setfenv(1, GLOBAL)
 
-GlassicAPI = {}
+-- Publish explicitly: strict.lua rejects implicit globals in function-loaded mod chunks.
+rawset(_G, "GlassicAPI", {})
 
 ------------------------------------------------------------------------------------------------------------
 -- Import Utils
