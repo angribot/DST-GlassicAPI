@@ -6,79 +6,19 @@ local function zheng(zh, en)
 	return LOC[locale] or en
 end
 
-version = "4.2.14"
+version = "4.3"
 name = "Glassic API"
 author = zheng("鸭子乐园", "Ducklantis")
 changelog = zheng(
 	[[
-- 修复MergeTranslationFromPO在翻译路径不存在时崩溃的问题，保留无关字符串
-- SetOnequipSkinItem回调报错时显示注册方模组与prefab，并保留原始错误堆栈
-- 移除过时的moonglassaxe辅助函数示例，明确SetOnequipSkinItem的事件行为
-
-最近更新：
-- 模组调用API注册的配方与后处理现在归属调用方模组，不再归到GlassicAPI名下
-- AddRecipe默认filter对齐官方：nounlock进工作站，builder_tag/builder_skill进角色，其余进模组
-- CommonAction同时匹配code与mod_name，避免与其他模组的动作冲突
-- SetOnequipSkinItem改为监听equipped事件，不再包装onequipfn
-- 撤回4.2.12中"SetOnequipSkinItem补发unequipskinneditem事件"的改动；4.2.12新增的该事件会与自带此事件的官方prefab重复，导致装备记录被错误关闭
-- 角色专属皮肤与test_fn改为同时满足，移除皮肤时一并清除专属标记
-- MergeTranslationFromPO只应用本次合并的条目
-- 修复CommonAction状态函数收不到当前动作的问题
-- SetOnequipSkinItem在缺少equippable组件时跳过，并补发unequipskinneditem事件
-- 修复MergeTranslationFromPO在目标语言未加载时崩溃的问题
-- 减少皮肤校验与配方搜索中的重复计算
-- 修复引擎已初始化模组皮肤时重复执行init_fn的问题
-- 修复同一皮肤reskin被拒绝后未重新初始化的问题
-- 修复模组皮肤初始化丢失skin_custom、默认build和容器打开状态的问题
-- 修复CommonAction未同步mod_name导致动作RPC解析异常
-- Floater优先使用官方SetSwapData接口，保留IA兼容回退
-- 复用官方AddRecipeToFilter并补齐SetOnequipSkinItem参数转发
-- 修复初始物品过滤会永久修改TUNING的问题
-- 修复DefaultSkinSelectionPopup中角色专属皮肤过滤不生效
-- reskin_tool对模组角色复用官方的can_cast_fn检查
-- 修复发布器缺失的 mod.manifest
-- 增加通用动作API。
-- GetFullInventory增加一处条件判断。
-- 修复一处崩溃。
-- AnimState.GetSkinBuild现在会回落到Entity.GetSkinBuild。
-- 为GlassicAPI.AddTech增加了一个传入参数。
-- 官方皮肤不会被视为模组皮肤了。
-- 调整了reskin_tool的can_cast_fn的后处理写法。
+- RecipeSortBefore/RecipeSortAfter要求a、b为不同的非空字符串，无效参数立即报错，不再支持b为nil
+- 指定filter但参照配方不在其中时，将待排序配方加入或移动到该filter末尾
+- 配方排序后同步更新分类索引，并跳过不支持静态排序的filter
 ]],
 	[[
-- Fix MergeTranslationFromPO crashing on missing translation paths while preserving unrelated strings
-- SetOnequipSkinItem callback errors now identify the registering mod and prefab while retaining the original traceback
-- Remove the obsolete moonglassaxe helper example and clarify SetOnequipSkinItem event behavior
-
-Recent Changes:
-- Recipes and post-init data registered through the API are now attributed to the calling mod instead of GlassicAPI
-- AddRecipe default filters match the official ones: nounlock goes to the crafting station, builder_tag/builder_skill to the character, everything else to the mods filter
-- CommonAction matches on code and mod_name, so actions from other mods no longer collide
-- SetOnequipSkinItem listens on the equipped event instead of wrapping onequipfn
-- Revert the unequipskinneditem push added in 4.2.12: official prefabs that already push it got a duplicate event, which closed the wrong worn-item record
-- Character exclusive skins now also require their test_fn, and removing a skin clears its exclusive entry
-- MergeTranslationFromPO only applies the entries it merged
-- Fix CommonAction state functions not receiving the current action
-- SetOnequipSkinItem skips prefabs without an equippable component and pushes unequipskinneditem
-- Fix MergeTranslationFromPO crashing when the target language is not loaded
-- Cut redundant work in skin validation and recipe search
-- Fix duplicate mod skin init_fn calls when the engine already initialized the skin
-- Fix mod skins not reinitializing after a rejected same-skin reskin
-- Fix mod skin initialization dropping skin_custom, default build, and open-container state
-- Fix CommonAction not copying mod_name, which broke action RPC resolution
-- Prefer official Floater:SetSwapData while keeping the IA fallback
-- Reuse AddRecipeToFilter and forward SetOnequipSkinItem arguments
-- Fix starting item filter permanently modifying TUNING
-- Fix character exclusive skin filter not working in DefaultSkinSelectionPopup
-- Reuse official "can_cast_fn" checks for mod characters in "main/reskin_tool"
-- Fix missing mod.manifest
-- Add common action API.
-- Add condition in fn GetFullInventory.
-- Fix a crash.
-- AnimState.GetSkinBuild will now fallback to Entity.GetSkinBuild.
-- Add 2rd param for GlassicAPI.AddTech.
-- Official skins are now ignored by "AddModSkin" fn.
-- Rewrite "can_cast_fn" in "main/reskin_tool".
+- RecipeSortBefore/RecipeSortAfter require distinct, non-empty strings for a and b and immediately reject invalid arguments; nil is no longer supported for b
+- When an explicit filter does not contain the reference recipe, add or move the recipe being sorted to the end of that filter
+- Keep filter indices in sync after recipe sorting and skip filters that do not support static ordering
 ]]
 )
 description = zheng("版本: ", "Version: ")

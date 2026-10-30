@@ -347,65 +347,55 @@ end
 
 ------------------------------------------------------------------------------------------------------------
 
-local function get_index(t, v)
-	for index, value in pairs(t) do
-		if value == v then
-			return index
-		end
+local function do_sorting(mod_env, a, b, filter_name, offset)
+	local filter = CRAFTING_FILTERS[filter_name]
+	if not filter or type(filter.recipes) ~= "table" or type(filter.default_sort_values) ~= "table" then
+		return
 	end
+
+	local recipes = filter.recipes
+	mod_env.AddRecipeToFilter(a, filter_name)
+	table.removearrayvalue(recipes, a)
+	local target_position = table.reverselookup(recipes, b)
+	table.insert(recipes, target_position and target_position + offset or #recipes + 1, a)
+	filter.default_sort_values = table.invert(recipes)
 end
 
-local function do_sorting(a, b, filter_name, offset, force_sort)
-	local filter = CRAFTING_FILTERS[filter_name]
-	if filter and filter.recipes and type(filter.recipes) == "table" then
-		local target_position
-		local recipes = filter.recipes
-		if get_index(recipes, a) then
-			if force_sort or table.contains(recipes, b) then
-				table.remove(recipes, get_index(recipes, a))
-				target_position = #recipes + 1
+local function try_sorting(mod_env, a, b, filter_type, offset)
+	assert(type(a) == "string" and a ~= "", "GlassicAPI recipe sorting requires a non-empty recipe name for a")
+	assert(type(b) == "string" and b ~= "", "GlassicAPI recipe sorting requires a non-empty recipe name for b")
+	assert(a ~= b, "GlassicAPI recipe sorting requires different recipe names for a and b")
+
+	if filter_type ~= nil then
+		do_sorting(mod_env, a, b, filter_type, offset)
+	else
+		for filter_name, filter in pairs(CRAFTING_FILTERS) do
+			if type(filter.recipes) == "table" and table.reverselookup(filter.recipes, b) then
+				do_sorting(mod_env, a, b, filter_name, offset)
 			end
 		end
-
-		if get_index(recipes, b) then
-			target_position = get_index(recipes, b) + offset
-		end
-
-		if type(target_position) == "number" then
-			table.insert(recipes, target_position, a)
-			filter.default_sort_values[a] = filter.default_sort_values[a] or #recipes
-		end
 	end
 end
 
-local function try_sorting(a, b, filter_type, offset)
-	if filter_type then
-		do_sorting(a, b, filter_type, offset, true)
-	elseif b then
-		for filter in pairs(CRAFTING_FILTERS) do
-			do_sorting(a, b, filter, offset)
-		end
-	end
+-- Adjust default recipe order during initialization, before crafting menus are created.
+-- Adds a to every sortable filter containing b, or only to filter_type when specified.
+-- In an explicit filter without b, both helpers append a even if it is not already a member.
+-- Does not remove a from other filters or override the player's sorting mode.
+-- Missing filters and filters without table-backed recipes and sort values are skipped.
+---@param mod_env table
+---@param a string Non-empty recipe name to add or move; must differ from b.
+---@param b string Non-empty reference recipe name.
+---@param filter_type? string
+local function recipe_sort_before(mod_env, a, b, filter_type)
+	try_sorting(mod_env, a, b, filter_type, 0)
 end
 
--- a quick way to sort recipes before or after current recipes.
----@param a string -- the recipe name that you want to sort
----@param b string -- the target recipe name that we base on.
+---@param mod_env table
+---@param a string Non-empty recipe name to add or move; must differ from b.
+---@param b string Non-empty reference recipe name.
 ---@param filter_type? string
--- e.g. GlassicAPI.RecipeSortAfter("darkcrystal", "purplegem") will sort "darkcrystal" after "purplegem" in all filters that "purplegem" is in.
--- e.g. GlassicAPI.RecipeSortAfter("darkcrystal", "purplegem", "MAGIC") will only sort "darkcrystal" after "purplegem" in "MAGIC" filter.
--- e.g. GlassicAPI.RecipeSortAfter("darkcrystal", "purplegem", "TOOLS") will only sort "darkcrystal" to the last in "TOOLS" because "purplegem" is not in "TOOLS".
--- e.g. GlassicAPI.RecipeSortAfter("darkcrystal", nil, "TOOLS") will also sort "darkcrystal" to the last in "TOOLS".
--- one of b and filter_type must not be nil.
-GlassicAPI.RecipeSortBefore = function(a, b, filter_type)
-	try_sorting(a, b, filter_type, 0)
-end
-
----@param a string
----@param b string
----@param filter_type? string
-GlassicAPI.RecipeSortAfter = function(a, b, filter_type)
-	try_sorting(a, b, filter_type, 1)
+local function recipe_sort_after(mod_env, a, b, filter_type)
+	try_sorting(mod_env, a, b, filter_type, 1)
 end
 
 ------------------------------------------------------------------------------------------------------------
@@ -575,6 +565,8 @@ local ENV_API = {
 	InitMinimapAtlas = init_minimap_atlas,
 	SetOnequipSkinItem = add_onquip_skin_item,
 	AddRecipe = add_recipe,
+	RecipeSortBefore = recipe_sort_before,
+	RecipeSortAfter = recipe_sort_after,
 }
 
 local env_apis = setmetatable({}, { __mode = "k" })
